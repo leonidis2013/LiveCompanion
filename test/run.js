@@ -40,6 +40,8 @@ X
 ;; *) echo "apt-get $*";; esac`);
   stub('systemctl', 'case "$1" in is-active) echo active;; *) echo "systemctl $*";; esac');
   stub('docker', 'exit 1');
+  // CI runs as a normal user with real sudo, which ignores PATH: run the command directly instead
+  stub('sudo', 'while [ $# -gt 0 ]; do case "$1" in -n|-S) shift;; -p) shift 2;; *) break;; esac; done; exec "$@"');
   stub('companion-update', `echo "fake companion-update $*"; echo v4.3.4 > "${t}/opt/companion/BUILD"`);
   stub('satellite-update', `echo "fake satellite-update $*"; echo v2.3.1 > "${t}/opt/companion-satellite/BUILD"`);
   return { root: t, bin, env: { LC_ROOT: t, PATH: bin + ':' + process.env.PATH } };
