@@ -1,0 +1,16 @@
+# TrueNAS SCALE: Apps > Discover Apps > Custom App > "Install via YAML", paste this.
+# The container runs as uid 1000 (node): give that user write access to the dataset
+# (ACL entry for user 1000, or chown 1000:1000). Do not set another "user:" here,
+# ssh needs the uid to exist inside the image.
+# Change the host path to a dataset of yours, and the host port if 9080 is taken.
+services:
+  livecompanion:
+    image: ghcr.io/leonidis2013/livecompanion:latest
+    container_name: livecompanion
+    restart: unless-stopped
+    ports:
+      - "9080:8080"
+    volumes:
+      - /mnt/tank/apps/livecompanion:/data
+    environment:
+      TZ: America/Chicago

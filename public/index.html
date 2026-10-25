@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>LiveCompanion</title>
+<script>
+(function () {
+  var p = 'auto';
+  try { p = localStorage.getItem('lc-theme') || 'auto'; } catch (e) {}
+  var light = p === 'light' || (p === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+  document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+})();
+</script>
+<style>
+  /* Same palette, controls and settings layout as LiveMic and the LivePi web page */
+  :root { --bg:#0d1015; --card:#151a21; --card2:#1b2129; --line:#252c36; --fg:#d8dee6; --dim:#7c8794; --faint:#4c5561; --acc:#4c8dff; --teal:#2ec4b6; --bad:#ef4c4c; --ok:#3ecf6e; --warn:#f2c94c; --inset:#0b0e12; --knob:#d8dee6; --onacc:#0d1015; --shadow:#0008; --r:10px; color-scheme:dark; }
+  :root[data-theme=light] { --bg:#e9edf2; --card:#fbfcfd; --card2:#f0f3f6; --line:#d3dae3; --fg:#18202b; --dim:#586474; --faint:#97a1ae; --acc:#2563d6; --teal:#0f9488; --bad:#d63232; --ok:#23a056; --warn:#cf9a10; --inset:#e3e8ee; --knob:#ffffff; --onacc:#ffffff; --shadow:#0003; color-scheme:light; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height:100vh; }
+  .hide { display:none !important; }
+  #app { padding:0 14px calc(20px + env(safe-area-inset-bottom)); }
+
+  header { display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); margin-bottom:14px;
+           background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  h1 { font-size:15px; margin:0; letter-spacing:.12em; text-transform:uppercase; font-weight:800; }
+  h1 .ver { font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:none; color:var(--dim); vertical-align:1px; margin-left:2px; }
+  h1 small { display:block; font-size:10px; letter-spacing:.04em; color:var(--dim); font-weight:400; text-transform:none; }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); margin:0 0 10px; font-weight:700; }
+  h2::before { content:""; display:inline-block; width:3px; height:11px; background:var(--acc); border-radius:2px; margin-right:7px; vertical-align:-1px; }
+
+  #status { flex:1; min-width:0; display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  #status::-webkit-scrollbar { display:none; }
+  .st { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; background:var(--card2); border-radius:999px; padding:3px 10px; font-size:12px; color:var(--dim); white-space:nowrap; }
+  .st.bad { background:color-mix(in srgb, var(--bad) 18%, transparent); color:var(--bad); }
+  .st.warn { background:color-mix(in srgb, var(--warn) 16%, transparent); color:var(--warn); }
+  .st.ok { background:color-mix(in srgb, var(--ok) 16%, transparent); color:var(--ok); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); } .dot.bad { background:var(--bad); } .dot.acc { background:var(--acc); }
+
+  select, input, button, textarea { background:var(--card2); color:var(--fg); border:1px solid transparent; border-radius:8px; padding:7px 11px; font:inherit; }
+  input:focus, select:focus, textarea:focus { outline:2px solid color-mix(in srgb, var(--acc) 55%, transparent); outline-offset:0; }
+  button { cursor:pointer; font-weight:600; touch-action:manipulation; }
+  button:hover { background:color-mix(in srgb, var(--card2) 80%, var(--fg) 8%); }
+  button:disabled, input:disabled { opacity:.35; cursor:not-allowed; }
+  button.on { background:var(--acc); color:var(--onacc); }
+  button.on:hover { background:color-mix(in srgb, var(--acc) 88%, var(--fg) 12%); }
+  button.danger { color:var(--bad); }
+  .seg { display:inline-flex; background:var(--card2); border-radius:9px; padding:3px; gap:2px; }
+  .seg button { border-radius:7px; background:transparent; padding:6px 12px; }
+  .seg button.on { background:var(--acc); color:var(--onacc); }
+  .note { color:var(--dim); font-size:12px; }
+  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+
+  /* header buttons: settings turns into Done */
+  .gear { display:flex; align-items:center; justify-content:center; gap:6px; width:32px; height:32px; padding:0; border-radius:8px; background:transparent; color:var(--dim); }
+  .gear:hover { color:var(--fg); background:var(--card2); }
+  .gear svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .gear span { display:none; font-size:13px; }
+  .gear.on { width:auto; padding:0 12px; background:var(--acc); color:var(--onacc); }
+  .gear.on svg { display:none; } .gear.on span { display:inline; }
+  .gear.spin svg { animation:spin 1s linear infinite; }
+  #updAll { padding:6px 14px; }
+
+  /* ===== devices ===== */
+  #alerts { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  #alerts:empty { display:none; }
+  .devs { display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:12px; align-items:start; }
+  .dev { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--ok); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:9px; min-width:0; }
+  .dev.upd { border-left-color:var(--warn); }
+  .dev.off { border-left-color:var(--bad); }
+  .dev.busy { border-left-color:var(--acc); }
+  .dev.none { border-left-color:var(--faint); }
+  .dh { display:flex; align-items:center; gap:8px; min-width:0; }
+  .dn { flex:1; min-width:0; font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dsub { font-size:12px; color:var(--dim); margin-top:-6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; }
+  .chip { font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 8px; border-radius:999px; background:var(--card2); color:var(--dim); }
+  .chip.t { background:color-mix(in srgb, var(--teal) 16%, transparent); color:var(--teal); }
+  .rows { display:flex; flex-direction:column; border-top:1px solid var(--line); }
+  .row { display:grid; grid-template-columns:76px 1fr auto; gap:8px; align-items:center; min-height:38px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .rl { font-size:10.5px; color:var(--dim); letter-spacing:.06em; text-transform:uppercase; }
+  .rv { min-width:0; font-size:13px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .rv small { display:block; font-size:11.5px; color:var(--dim); }
+  .rv .up { color:var(--warn); font-weight:700; } .rv .good { color:var(--ok); } .rv .bad { color:var(--bad); } .rv .arrow { color:var(--faint); padding:0 3px; }
+  .row button { padding:5px 12px; font-size:12.5px; }
+  .tag { font-size:11px; color:var(--dim); white-space:nowrap; }
+  .df { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .df .when { flex:1; min-width:90px; font-size:11.5px; color:var(--dim); }
+  .df button { padding:5px 11px; font-size:12.5px; }
+  .errbox { border:1px solid color-mix(in srgb, var(--bad) 55%, transparent); background:color-mix(in srgb, var(--bad) 10%, transparent); border-radius:8px; padding:7px 10px; font-size:12.5px; }
+  .errbox button { margin-top:6px; padding:4px 10px; font-size:12.5px; }
+  .okbox { border:1px solid color-mix(in srgb, var(--ok) 50%, transparent); background:color-mix(in srgb, var(--ok) 10%, transparent); border-radius:8px; padding:7px 10px; font-size:12.5px; }
+  .jobbox { border:1px solid color-mix(in srgb, var(--acc) 45%, transparent); background:color-mix(in srgb, var(--acc) 8%, transparent); border-radius:8px; padding:8px 10px; font-size:12.5px; display:flex; flex-direction:column; gap:5px; }
+  .jstep { display:flex; align-items:center; gap:7px; }
+  .jstep .ic { width:14px; text-align:center; flex:none; font-weight:800; }
+  .jstep.ok .ic { color:var(--ok); } .jstep.failed .ic { color:var(--bad); } .jstep.skipped { color:var(--faint); } .jstep.pending { color:var(--dim); }
+  .jstep.running .ic::before { content:""; display:inline-block; width:10px; height:10px; border:2px solid var(--acc); border-top-color:transparent; border-radius:50%; animation:spin .9s linear infinite; vertical-align:-1px; }
+  pre.tail { margin:2px 0 0; font:11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:var(--dim); white-space:pre-wrap; overflow-wrap:anywhere; max-height:66px; overflow:hidden; }
+  .link { background:none; border:0; padding:0; color:var(--acc); font-weight:600; font-size:12px; }
+  .link:hover { background:none; text-decoration:underline; }
+  .empty { color:var(--dim); text-align:center; padding:60px 10px; }
+
+  /* ===== settings (same layout as LiveMic and LivePi's Setup) ===== */
+  .setup { display:flex; gap:14px; align-items:flex-start; }
+  .side { display:flex; flex-direction:column; gap:4px; width:168px; flex:0 0 168px; position:sticky; top:64px; }
+  .side button { display:flex; align-items:center; gap:9px; text-align:left; background:transparent; color:var(--dim); font-weight:600; border-color:transparent; }
+  .side button svg { width:16px; height:16px; flex:0 0 16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .side button:hover { color:var(--fg); }
+  .side button.on { background:var(--card); border-color:var(--line); color:var(--acc); box-shadow:inset 3px 0 0 var(--acc); }
+  .pane { flex:1; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px; margin-bottom:14px; max-width:820px; }
+  .set { display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid var(--line); }
+  .card > h2 + .set, .set.first { border-top:0; }
+  .sl { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .sl b { font-weight:600; font-size:14px; }
+  .sl span { font-size:12px; color:var(--dim); line-height:1.35; }
+  .sl span:empty { display:none; }
+  .sc { flex:0 1 auto; display:flex; gap:6px; align-items:center; justify-content:flex-end; flex-wrap:wrap; min-width:0; }
+  .sc input.txt { width:120px; max-width:100%; }
+  .sc input.num { width:72px; text-align:center; }
+  .sc input.wide { width:190px; max-width:100%; }
+  .sc select { max-width:170px; }
+  .sc .to { font-size:12px; color:var(--dim); }
+  .sc .val { font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums; text-align:right; }
+  .sc .val.ok { color:var(--ok); } .sc .val.warn { color:var(--warn); } .sc .val.bad { color:var(--bad); }
+  .pnote { max-width:820px; margin:0 0 12px; }
+  .locknote { border:1px solid var(--warn); background:color-mix(in srgb, var(--warn) 12%, transparent); border-radius:6px; padding:8px 10px; margin-bottom:12px; font-size:13px; max-width:820px; }
+  .formerr { color:var(--bad); font-size:12.5px; padding:4px 0 2px; }
+  .keybox { width:100%; font:11.5px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize:none; height:64px; }
+  .found { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+  .found .fi { flex:1; min-width:0; } .found .fi b { display:block; font-weight:600; } .found .fi span { font-size:12px; color:var(--dim); }
+  .dcard h3 { margin:0 0 4px; font-size:14px; }
+  .act { display:flex; gap:12px; align-items:center; padding:9px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .act:first-child { border-top:0; }
+  .act:hover { background:color-mix(in srgb, var(--card2) 60%, transparent); }
+  .act .ai { flex:1; min-width:0; } .act .ai b { display:block; font-weight:600; } .act .ai span { font-size:12px; color:var(--dim); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bk { display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--line); font-size:13px; }
+  .bk span { flex:1; min-width:0; overflow-wrap:anywhere; } .bk small { color:var(--dim); }
+
+  /* confirm and log windows */
+  .scrim { position:fixed; inset:0; background:#0009; z-index:40; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:var(--card); border:1px solid var(--line); border-radius:12px; width:min(560px, 100%); max-height:calc(100vh - 32px); display:flex; flex-direction:column; box-shadow:0 12px 40px var(--shadow); }
+  .modal.big { width:min(860px, 100%); }
+  .mh { padding:14px 16px 4px; font-weight:700; font-size:15px; }
+  .mb { padding:6px 16px 12px; overflow:auto; font-size:13.5px; }
+  .mf { padding:10px 16px 14px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .mf .sp { flex:1; }
+  .pstep { display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); }
+  .pstep:first-child { border-top:0; }
+  .pstep input { margin-top:3px; padding:0; width:16px; height:16px; accent-color:var(--acc); }
+  .pstep b { display:block; font-weight:600; } .pstep span { font-size:12.5px; color:var(--dim); }
+  .pdev { font-weight:700; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); padding:12px 0 2px; }
+  pre.log { margin:0; font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--inset); border-radius:8px; padding:10px; max-height:60vh; overflow:auto; }
+
+  .toast { position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--card); color:var(--fg); border:1px solid var(--bad);
+           padding:8px 14px; border-radius:999px; font-size:14px; display:none; z-index:80; max-width:90vw; box-shadow:0 6px 24px var(--shadow); }
+  .toast.show { display:block; } .toast.good { border-color:var(--ok); }
+
+  .offbar { display:none; position:fixed; left:50%; top:calc(12px + env(safe-area-inset-top)); transform:translateX(-50%); z-index:60; background:var(--bad); color:#fff;
+            padding:10px 16px; border-radius:999px; font-weight:600; font-size:14px; box-shadow:0 6px 24px var(--shadow); align-items:center; gap:10px; white-space:nowrap; }
+  body.offline .offbar { display:flex; }
+  body.offline #tab-main, body.offline #tab-setup { filter:grayscale(1); opacity:.4; pointer-events:none; user-select:none; }
+  .spin { width:14px; height:14px; border:2px solid #fff6; border-top-color:#fff; border-radius:50%; animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  @media (max-width:720px) {
+    header { row-gap:6px; padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top)); gap:8px; }
+    header h1 { font-size:14px; } header h1 small { display:none; }
+    #status { order:3; flex:1 0 100%; }
+    .gear { order:2; } #fsBtn { margin-left:auto; order:1; } #chkAll { order:1; } #updAll { order:1; }
+    h1 { order:0; }
+    #app { padding-left:10px; padding-right:10px; }
+    .devs { grid-template-columns:1fr; }
+    .setup { flex-direction:column; align-items:stretch; gap:10px; }
+    .side { flex-direction:row; width:100%; flex:none; overflow-x:auto; position:static; scrollbar-width:none; gap:6px; }
+    .side::-webkit-scrollbar { display:none; }
+    .side button { flex:0 0 auto; min-height:38px; padding:6px 14px; border-radius:999px; background:var(--card2); font-size:14px; border:0; box-shadow:none; }
+    .side button.on { background:var(--acc); color:var(--onacc); box-shadow:none; }
+    .card { padding:12px; }
+    .set { padding:10px 0; gap:10px; flex-wrap:wrap; }
+    .sl { flex:1 1 100%; }
+    .sc { flex:1 1 100%; justify-content:flex-start; }
+    .sc input.txt { width:110px; font-size:16px; } .sc input.num { font-size:16px; } .sc input.wide { width:100%; font-size:16px; }
+    .sc button { min-height:38px; padding:6px 12px; font-size:15px; }
+    .sc .seg button { min-height:34px; padding:4px 10px; font-size:14px; }
+    .row button, .df button { min-height:34px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LiveCompanion <span class="ver" id="hVer"></span><small>Companion update center</small></h1>
+  <div id="status"></div>
+  <button id="updAll" class="on hide" title="Install all updates">Update all</button>
+  <button id="chkAll" class="gear" title="Check all devices now" aria-label="Check all devices now"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>
+  <button id="fsBtn" class="gear" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <button id="gear" class="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Done</span></button>
+</header>
+<div class="offbar"><span class="spin"></span>Lost connection to LiveCompanion. Retrying…</div>
+
+<div id="app">
+<section id="tab-main">
+  <div id="alerts"></div>
+  <div id="devs" class="devs"></div>
+  <div id="empty" class="empty hide"><div id="emptyMsg">Connecting…</div><button id="emptyBtn" class="on hide" style="margin-top:14px">Add a device</button></div>
+</section>
+
+<section id="tab-setup" class="hide">
+ <div class="setup">
+  <div class="side" id="sub">
+    <button data-sub="devices" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg><span>Devices</span></button>
+    <button data-sub="email"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span>Email</span></button>
+    <button data-sub="backups"><svg viewBox="0 0 24 24"><path d="M21 8v12H3V8M1 3h22v5H1zM10 12h4"/></svg><span>Backups</span></button>
+    <button data-sub="activity"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Activity</span></button>
+    <button data-sub="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Settings</span></button>
+  </div>
+  <div class="pane">
+
+    <div data-pane="devices">
+      <div class="card">
+        <h2>Find devices</h2>
+        <div class="set first"><div class="sl"><b>Search the network</b><span>Looks for devices with SSH turned on in this address range, and marks the ones that look like Companion or a Satellite</span></div>
+          <div class="sc"><input id="scRange" class="txt wide" list="scList" placeholder="192.168.1.0/24" spellcheck="false" autocomplete="off" aria-label="Address range"><datalist id="scList"></datalist><button id="scGo" class="on">Search</button></div></div>
+        <div id="scStatus" class="note hide" style="padding:2px 0 6px"></div>
+        <div id="scResults"></div>
+      </div>
+      <div class="card">
+        <h2>Add a device</h2>
+        <div class="set first"><div class="sl"><b>Address</b><span>IP address or host name of the Pi or server</span></div><div class="sc"><input id="adHost" class="txt wide" placeholder="192.168.1.20" spellcheck="false" autocomplete="off" aria-label="Device address"><input id="adPort" class="num" type="number" value="22" min="1" max="65535" aria-label="SSH port" title="SSH port"></div></div>
+        <div class="set"><div class="sl"><b>User</b><span>The account to log in with. It needs root or sudo rights to run updates</span></div><div class="sc"><input id="adUser" class="txt wide" placeholder="pi" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="SSH user"></div></div>
+        <div class="set"><div class="sl"><b>Login</b><span id="adAuthNote"></span></div><div class="sc"><div class="seg" id="adAuth"><button data-v="key" class="on">Key</button><button data-v="password">Password</button></div></div></div>
+        <div class="set hide" id="adPwRow"><div class="sl"><b>Password</b><span>Stored encrypted on this server</span></div><div class="sc"><input id="adPw" class="txt wide" type="password" autocomplete="new-password" aria-label="Password"></div></div>
+        <div class="set hide" id="adKeyRow"><div class="sl"><b>Use a key from now on</b><span>Copies LiveCompanion's key to the device with this password, then logs in with the key</span></div><div class="sc"><div class="seg" id="adInstall"><button data-v="1" class="on">Yes</button><button data-v="0">No</button></div></div></div>
+        <div class="set"><div class="sl"><b>Sudo password</b><span>Only if the user must type a password for sudo (not needed for root)</span></div><div class="sc"><input id="adSudo" class="txt wide" type="password" autocomplete="new-password" aria-label="Sudo password"></div></div>
+        <div class="set"><div class="sl"><b>Name</b><span>Optional. Uses the device's own name if left empty</span></div><div class="sc"><input id="adName" class="txt wide" maxlength="40" autocomplete="off" aria-label="Device name"></div></div>
+        <div id="adErr" class="formerr hide"></div>
+        <div class="set"><div class="sl"></div><div class="sc"><button id="adGo" class="on">Add device</button></div></div>
+      </div>
+      <div class="card">
+        <h2>LiveCompanion's SSH key</h2>
+        <div class="note" style="margin-bottom:8px">Key logins use this key. To let it in by hand, add this line to <b>~/.ssh/authorized_keys</b> on the device. Choosing Password above and "Use a key from now on" does it for you.</div>
+        <textarea id="keyBox" class="keybox" readonly spellcheck="false" aria-label="Public key"></textarea>
+        <div style="margin-top:8px"><button id="keyCopy">Copy</button></div>
+      </div>
+      <div id="devMgr"></div>
+    </div>
+
+    <div data-pane="email" class="hide">
+      <div class="note pnote">LiveCompanion sends one email after the daily check when there are new updates, and stays quiet until something new appears.</div>
+      <div class="card">
+        <h2>Email</h2>
+        <div class="set first"><div class="sl"><b>Send update emails</b></div><div class="sc"><div class="seg" id="emOn"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+        <div class="set"><div class="sl"><b>Mail server</b><span>Host and port of your SMTP server</span></div><div class="sc"><input id="emHost" class="txt wide" placeholder="smtp.example.com" spellcheck="false" autocomplete="off"><input id="emPort" class="num" type="number" min="1" max="65535" value="587"></div></div>
+        <div class="set"><div class="sl"><b>Connection</b><span>STARTTLS is usual on port 587, TLS on 465</span></div><div class="sc"><div class="seg" id="emSec"><button data-v="starttls">STARTTLS</button><button data-v="tls">TLS</button><button data-v="none">None</button></div></div></div>
+        <div class="set"><div class="sl"><b>Login</b><span>Leave the user empty if the server needs none</span></div><div class="sc"><input id="emUser" class="txt" placeholder="user" autocomplete="off" spellcheck="false"><input id="emPass" class="txt" type="password" placeholder="password" autocomplete="new-password"></div></div>
+        <div class="set"><div class="sl"><b>From</b></div><div class="sc"><input id="emFrom" class="txt wide" placeholder="livecompanion@example.com" spellcheck="false" autocomplete="off"></div></div>
+        <div class="set"><div class="sl"><b>To</b><span>Separate several addresses with commas</span></div><div class="sc"><input id="emTo" class="txt wide" placeholder="you@example.com" spellcheck="false" autocomplete="off"></div></div>
+        <div class="set"><div class="sl"><b>Self-signed certificate</b><span>Accept a mail server whose certificate is not from a public authority</span></div><div class="sc"><div class="seg" id="emSelf"><button data-v="1">Accept</button><button data-v="0">Refuse</button></div></div></div>
+        <div class="set"><div class="sl"></div><div class="sc"><button id="emTest">Send test email</button><button id="emSave" class="on">Save</button></div></div>
+      </div>
+    </div>
+
+    <div data-pane="backups" class="hide">
+      <div class="note pnote">Before Companion or Satellite is updated, LiveCompanion copies its configuration to this server. To restore one, stop Companion on the device, unpack the file into the same folder and start it again (see the README).</div>
+      <div id="bkPane"></div>
+    </div>
+
+    <div data-pane="activity" class="hide">
+      <div class="card"><h2>Recent updates</h2><div id="actList"></div></div>
+    </div>
+
+    <div data-pane="settings" class="hide">
+      <div class="note pnote">Display settings are saved on this device. The rest is saved on the server.</div>
+      <div class="card">
+        <h2>Appearance</h2>
+        <div class="set first"><div class="sl"><b>Theme</b><span>Auto follows this device</span></div><div class="sc"><div class="seg" id="themeSeg"><button data-v="auto">Auto</button><button data-v="dark">Dark</button><button data-v="light">Light</button></div></div></div>
+      </div>
+      <div class="card">
+        <h2>Checking for updates</h2>
+        <div class="set first"><div class="sl"><b>Daily check</b><span>Looks at every device, then emails if there is something new</span></div><div class="sc"><div class="seg" id="schOn"><button data-v="1">On</button><button data-v="0">Off</button></div><input id="schTime" type="time" aria-label="Check time"></div></div>
+        <div class="set"><div class="sl"><b>Refresh package lists</b><span>Runs apt update on each device while checking, so the OS update count is current. Needs root or sudo</span></div><div class="sc"><div class="seg" id="refSeg"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+        <div class="set"><div class="sl"><b>Companion channel</b><span>Only stable releases are offered</span></div><div class="sc"><span class="val">Stable</span></div></div>
+      </div>
+      <div class="card">
+        <h2>Backups</h2>
+        <div class="set first"><div class="sl"><b>Back up before updating</b><span>Companion and Satellite configuration, copied here first. If the backup fails, nothing is updated</span></div><div class="sc"><div class="seg" id="bkOn"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+        <div class="set"><div class="sl"><b>Keep</b><span>Newest backups per device and program</span></div><div class="sc"><input id="bkKeep" class="num" type="number" min="1" max="50" aria-label="Backups to keep"></div></div>
+      </div>
+      <div class="card">
+        <h2>Control</h2>
+        <div class="set first"><div class="sl"><b>Control PIN</b><span id="pinNote"></span></div><div class="sc"><input id="pinNew" class="txt" type="password" autocomplete="new-password" placeholder="New PIN" aria-label="New PIN"><button id="pinSet" class="on">Set</button><button id="pinRm" class="danger hide">Remove</button></div></div>
+      </div>
+      <div class="card">
+        <h2>About</h2>
+        <div class="set first"><div class="sl"><b>Version</b></div><div class="sc"><span class="val" id="verVal"></span></div></div>
+        <div class="set" id="updRow"><div class="sl"><b>Updates</b><span id="updNote"></span></div><div class="sc"><button id="updBtn">Check now</button></div></div>
+        <div class="set hide" id="updHow"><div class="sl"><b>To update</b><span>In TrueNAS, open Apps, edit LiveCompanion and set the image to this, then save</span></div><div class="sc"><input id="updImg" class="txt wide" readonly spellcheck="false" aria-label="New image name"></div></div>
+        <div class="set"><div class="sl"><b>Mode</b><span id="modeNote"></span></div><div class="sc"><span class="val" id="modeVal"></span></div></div>
+      </div>
+    </div>
+
+  </div>
+ </div>
+</section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div id="modalHost"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function mk(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function short(v) { return String(v || '').replace(/\+.*$/, ''); }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function ago(t) {
+    if (!t) return 'never';
+    var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 45) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    return Math.round(s / 86400) + ' d ago';
+  }
+  function dur(ms) { var s = Math.max(0, Math.round(ms / 1000)); return s < 90 ? s + ' s' : Math.round(s / 60) + ' min'; }
+
+  // ---------- saved on this device ----------
+  var themePref = 'auto', subPane = 'devices';
+  try { themePref = localStorage.getItem('lc-theme') || 'auto'; } catch (e) {}
+  try { subPane = localStorage.getItem('lc-sub') || 'devices'; } catch (e) {}
+  if (['auto', 'dark', 'light'].indexOf(themePref) < 0) themePref = 'auto';
+  if (['devices', 'email', 'backups', 'activity', 'settings'].indexOf(subPane) < 0) subPane = 'devices';
+
+  // ---------- state ----------
+  var snap = null, lastMsg = 0, pin = '', inSetup = false, mode = 'connecting';
+  try { pin = sessionStorage.getItem('lc-pin') || ''; } catch (e) {}
+  var devEls = {}, devSig = {}, mgrSig = '', actSig = '', bkSig = '', scanTimer = null, scanLoaded = false, emailLoaded = false;
+  var logTimer = null;
+
+  var toastEl = $('#toast'), toastTimer;
+  function toast(msg, good) {
+    toastEl.textContent = msg; toastEl.className = 'toast show' + (good ? ' good' : '');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 4500);
+  }
+
+  // ---------- talking to the server ----------
+  // Every change goes through api(): it asks for the PIN when one is set, and asks again if it was wrong.
+  function api(path, body, retried) {
+    if (snap && snap.pinRequired && !pin) {
+      var p = prompt('Control PIN');
+      if (p == null) return Promise.resolve({ ok: false, cancelled: true });
+      pin = p; try { sessionStorage.setItem('lc-pin', pin); } catch (e) {}
+    }
+    return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pin': pin }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.status === 401) {
+          pin = ''; try { sessionStorage.removeItem('lc-pin'); } catch (e) {}
+          if (!retried) return api(path, body, true);
+        }
+        return res.j;
+      })
+      .catch(function () { return { ok: false, error: 'Could not reach LiveCompanion' }; });
+  }
+  function report(j, fallback) { if (!j.ok && !j.cancelled) toast(j.error || fallback); return j; }
+
+  // ---------- theme ----------
+  var mq = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+  function applyTheme() {
+    var light = themePref === 'light' || (themePref === 'auto' && mq && mq.matches);
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+  }
+  if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (themePref === 'auto') applyTheme(); });
+
+  // ---------- what can be done on a device ----------
+  var DESC = {
+    controller: 'Companion is backed up, stopped, updated and started again. Its buttons and triggers are unavailable for a minute or two.',
+    satellite: 'The Satellite configuration is backed up, then Satellite restarts. Its surfaces go dark for a moment.',
+    docker: 'Pulls the newer image and recreates the container. The container\'s own volume is not backed up.',
+    os: 'Runs apt update and apt upgrade. Services may restart while they are upgraded.',
+    reboot: 'The device restarts and is away for a minute or two.'
+  };
+  function stepsFor(d) {
+    var st = d.status, out = [];
+    if (!st || !st.reachable) return out;
+    (st.installs || []).forEach(function (i) {
+      if (!i.available || !i.canUpdate) return;
+      out.push({ key: i.id, title: i.docker ? 'Update ' + i.label + ' (' + i.name + ')' : 'Update ' + i.label + ' ' + short(i.version) + ' to ' + short(i.latest),
+        desc: i.docker ? DESC.docker : (i.kind === 'satellite' ? DESC.satellite : DESC.controller), checked: true });
+    });
+    if (st.os && st.os.supported && st.os.canUpdate && st.os.count > 0) {
+      out.push({ key: 'os', title: 'Install ' + plural(st.os.count, 'operating system update') + (st.os.security ? ' (' + st.os.security + ' security)' : ''), desc: DESC.os, checked: true });
+    }
+    if (st.reboot && st.reboot.required) out.push({ key: 'reboot', title: 'Reboot the device', desc: DESC.reboot, checked: false, optional: true });
+    return out;
+  }
+  function pendingCount(d) { return stepsFor(d).filter(function (s) { return !s.optional; }).length; }
+
+  // ---------- windows ----------
+  var host = $('#modalHost');
+  function closeModal() { host.innerHTML = ''; clearTimeout(logTimer); document.removeEventListener('keydown', escKey); }
+  function escKey(e) { if (e.key === 'Escape') closeModal(); }
+  function openModal(html, big) {
+    host.innerHTML = '<div class="scrim"><div class="modal' + (big ? ' big' : '') + '" role="dialog" aria-modal="true">' + html + '</div></div>';
+    $('.scrim', host).addEventListener('mousedown', function (e) { if (e.target.classList.contains('scrim')) closeModal(); });
+    document.addEventListener('keydown', escKey);
+    return $('.modal', host);
+  }
+
+  function confirmSteps(title, groups, goLabel) {
+    var h = '<div class="mh">' + esc(title) + '</div><div class="mb">';
+    groups.forEach(function (g) {
+      if (groups.length > 1 || g.showName) h += '<div class="pdev">' + esc(g.name) + '</div>';
+      g.steps.forEach(function (s, i) {
+        h += '<label class="pstep"><input type="checkbox" data-d="' + esc(g.id) + '" data-k="' + esc(s.key) + '"' + (s.checked ? ' checked' : '') + '><div><b>' + esc(s.title) + '</b><span>' + esc(s.desc) + '</span></div></label>';
+      });
+    });
+    h += '</div><div class="mf"><button id="mCancel">Cancel</button><button id="mGo" class="on">' + esc(goLabel || 'Start') + '</button></div>';
+    var m = openModal(h);
+    $('#mCancel', m).onclick = closeModal;
+    $('#mGo', m).onclick = function () {
+      var map = {};
+      $$('input[type=checkbox]:checked', m).forEach(function (c) { (map[c.dataset.d] = map[c.dataset.d] || []).push(c.dataset.k); });
+      var items = Object.keys(map).map(function (id) { return { id: id, steps: map[id] }; });
+      if (!items.length) { toast('Pick at least one thing to do'); return; }
+      $('#mGo', m).disabled = true;
+      api('api/update', { items: items }).then(function (j) {
+        if (j.cancelled) { $('#mGo', m).disabled = false; return; }
+        if (!j.ok) { report(j, 'Could not start'); $('#mGo', m).disabled = false; return; }
+        closeModal();
+        if (j.error) toast(j.error);
+      });
+    };
+  }
+
+  function updateDevice(d, onlyKey) {
+    var steps = stepsFor(d);
+    if (onlyKey) steps = steps.filter(function (s) { return s.key === onlyKey; });
+    if (!steps.length) return;
+    steps.forEach(function (s) { s.checked = onlyKey ? true : s.checked; });
+    confirmSteps(onlyKey ? steps[0].title + '?' : 'Update ' + d.name + '?', [{ id: d.id, name: d.name, steps: steps, showName: false }], onlyKey === 'reboot' ? 'Reboot' : 'Start');
+  }
+  function updateEverything() {
+    var groups = (snap.devices || []).map(function (d) { return { id: d.id, name: d.name, steps: stepsFor(d).filter(function (s) { return !d.busy; }) }; }).filter(function (g) { return g.steps.length; });
+    if (!groups.length) { toast('Everything is up to date', true); return; }
+    confirmSteps('Update all devices?', groups, 'Start');
+  }
+
+  function showLog(jobId, title) {
+    var m = openModal('<div class="mh">' + esc(title || 'Update log') + '</div><div class="mb"><div id="lgSum" class="note" style="margin-bottom:8px"></div><pre class="log" id="lgBody">Loading…</pre></div><div class="mf"><button id="lgClose" class="on">Close</button></div>', true);
+    $('#lgClose', m).onclick = closeModal;
+    var stick = true;
+    $('#lgBody', m).addEventListener('scroll', function () { var e = this; stick = e.scrollHeight - e.scrollTop - e.clientHeight < 30; });
+    (function load() {
+      fetch('api/job?id=' + encodeURIComponent(jobId), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        var b = $('#lgBody'); if (!b) return;
+        if (j.ok === false) { b.textContent = j.error || 'That job is gone'; return; }
+        b.textContent = j.log || '(nothing yet)';
+        if (stick) b.scrollTop = b.scrollHeight;
+        $('#lgSum').textContent = (j.status === 'running' ? 'Running… ' : j.status === 'done' ? 'Finished. ' : j.status === 'failed' ? 'Failed. ' : '') + (j.summary || '');
+        if (j.status === 'running' || j.status === 'queued') logTimer = setTimeout(load, 1500);
+      }).catch(function () { logTimer = setTimeout(load, 3000); });
+    })();
+  }
+
+  // ---------- device cards ----------
+  function dotFor(d) {
+    var st = d.status;
+    if (d.busy) return 'acc';
+    if (!st) return '';
+    if (!st.reachable) return 'bad';
+    return pendingCount(d) ? 'warn' : 'ok';
+  }
+  function jobFor(d) {
+    var best = null;
+    (snap.jobs || []).forEach(function (j) { if (j.deviceId === d.id && !best) best = j; });
+    return best;
+  }
+  function stepIcon(s) { return { ok: '✓', failed: '✕', skipped: '–', pending: '·', running: '' }[s] || ''; }
+
+  function rowHtml(label, value, action) {
+    return '<div class="row"><span class="rl">' + esc(label) + '</span><div class="rv">' + value + '</div><div>' + (action || '') + '</div></div>';
+  }
+
+  function cardHtml(d) {
+    var st = d.status, steps = stepsFor(d), n = steps.filter(function (s) { return !s.optional; }).length;
+    var job = jobFor(d);
+    var cls = 'dev ' + (d.busy ? 'busy' : !st ? 'none' : !st.reachable ? 'off' : n ? 'upd' : '');
+    var h = '<div class="dh"><span class="dot ' + dotFor(d) + '"></span><div class="dn" title="' + esc(d.name) + '">' + esc(d.name) + '</div></div>';
+    h += '<div class="dsub">' + esc(d.user + '@' + d.host + (d.port !== 22 ? ':' + d.port : '')) + (st && st.sys && st.sys.hostname && st.sys.hostname !== d.name ? ' · ' + esc(st.sys.hostname) : '') + '</div>';
+
+    if (!st) {
+      h += '<div class="note">Not checked yet.</div>';
+    } else {
+      var chips = '';
+      (st.installs || []).forEach(function (i) { chips += '<span class="chip t">' + esc(i.docker ? (i.kind === 'satellite' ? 'Satellite' : 'Controller') + ' · Docker' : i.kind === 'satellite' ? 'Satellite' : 'Controller') + '</span>'; });
+      if (st.sys && st.sys.os) chips += '<span class="chip">' + esc(st.sys.os.replace(/\s*\(.*\)$/, '')) + '</span>';
+      if (st.sys && st.sys.arch) chips += '<span class="chip">' + esc(st.sys.arch) + '</span>';
+      if (chips) h += '<div class="chips">' + chips + '</div>';
+
+      if (!st.reachable) {
+        var e = st.error || {};
+        h += '<div class="errbox"><b>Not reachable.</b> ' + esc(e.message || 'No answer') +
+          (e.kind === 'hostkey' ? '<br><button data-act="trust">Trust the new key</button>' : '') + '</div>';
+      }
+      var rows = '';
+      (st.installs || []).forEach(function (i) {
+        var v;
+        var open = i.url && st.reachable && !i.docker ? ' <a href="' + esc(i.url) + '" target="_blank" rel="noopener">open</a>' : '';
+        if (i.docker) {
+          v = '<span>' + esc(short(i.version) || i.image) + '</span>' + (i.available ? '<span class="arrow">→</span><b class="up">newer image</b>' : i.unknown ? '' : '<span class="good"> · current</span>') + '<small>' + esc(i.name + ' · ' + i.service) + (i.unknown ? ' · not compared yet' : '') + '</small>';
+        } else if (i.available) {
+          v = '<span>' + esc(short(i.version) || 'unknown') + '</span><span class="arrow">→</span><b class="up">' + esc(short(i.latest)) + '</b>' + open + '<small>' + esc(i.service !== 'active' ? 'service ' + i.service : '') + '</small>';
+        } else {
+          var tail = i.note ? i.note : i.latest ? 'up to date' : '';
+          v = '<span>' + esc(short(i.version) || 'unknown') + '</span>' + open + '<small' + (tail === 'up to date' ? ' class="good" style="color:var(--ok)"' : '') + '>' + esc(tail) + (i.service !== 'active' ? ' · service ' + esc(i.service) : '') + '</small>';
+        }
+        var a = '';
+        if (i.available && i.canUpdate) a = '<button class="on" data-act="upd" data-key="' + esc(i.id) + '"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Update</button>';
+        else if (i.available && !i.canUpdate) a = '<span class="tag" title="' + esc(i.why) + '">can\'t update</span>';
+        else if (i.why && !i.canUpdate) a = '<span class="tag" title="' + esc(i.why) + '">manual</span>';
+        rows += rowHtml(i.label.replace(' (Docker)', ''), v, a);
+      });
+      if (st.os) {
+        var ov, oa = '';
+        if (!st.os.supported) { ov = '<span>not managed</span><small>' + esc(st.os.why) + '</small>'; }
+        else if (st.os.count > 0) {
+          ov = '<b class="up" title="' + esc((st.os.packages || []).join(', ')) + '">' + plural(st.os.count, 'update') + '</b>' + (st.os.security ? ' <span class="bad">' + st.os.security + ' security</span>' : '') + '<small>' + esc((st.os.packages || []).slice(0, 4).join(', ') + (st.os.packages && st.os.packages.length > 4 ? '…' : '')) + '</small>';
+          if (st.os.canUpdate) oa = '<button class="on" data-act="upd" data-key="os"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Update</button>';
+          else oa = '<span class="tag" title="' + esc(st.os.why) + '">needs sudo</span>';
+        } else {
+          ov = '<span class="good">up to date</span>' + (st.os.listsAge != null && st.os.listsAge > 3 * 86400 ? '<small>package lists are ' + Math.round(st.os.listsAge / 86400) + ' days old</small>' : st.os.kept ? '<small>' + st.os.kept + ' held back</small>' : '');
+        }
+        rows += rowHtml('System', ov, oa);
+      }
+      if (st.reboot && st.reboot.required) {
+        rows += rowHtml('Reboot', '<b class="up">needed</b><small>' + esc(st.reboot.why === 'kernel' ? 'a newer kernel is installed' : (st.reboot.packages || []).join(', ') || 'after updates') + '</small>', '<button data-act="upd" data-key="reboot"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Reboot</button>');
+      }
+      if (rows) h += '<div class="rows">' + rows + '</div>';
+      else if (st.reachable) h += '<div class="note">Nothing from Bitfocus found on this device. It is still checked for operating system updates.</div>';
+      (st.feedNotes || []).forEach(function (n2) { h += '<div class="note">' + esc(n2) + '</div>'; });
+    }
+
+    if (d.busy && job && job.status !== 'done' && job.status !== 'failed') {
+      h += '<div class="jobbox">' + job.steps.map(function (s) { return '<div class="jstep ' + esc(s.status) + '"><span class="ic">' + stepIcon(s.status) + '</span><span>' + esc(s.label) + (s.detail ? ' <span class="note">(' + esc(s.detail) + ')</span>' : '') + '</span></div>'; }).join('') +
+        '<pre class="tail">' + esc(job.tail || '') + '</pre><div><button class="link" data-act="log" data-job="' + esc(job.id) + '">View full log</button></div></div>';
+    } else if (job && job.endedAt && Date.now() - job.endedAt < 15 * 60 * 1000) {
+      h += '<div class="' + (job.status === 'done' ? 'okbox' : 'errbox') + '">' + (job.status === 'done' ? '<b>Done.</b> ' : '<b>Failed.</b> ') + esc(job.summary || '') + ' <button class="link" data-act="log" data-job="' + esc(job.id) + '">View log</button></div>';
+    }
+
+    var when = d.checking ? 'checking…' : st ? 'checked ' + ago(st.checkedAt) : '';
+    h += '<div class="df"><span class="when">' + esc(when) + '</span>' +
+      '<button data-act="check"' + (d.busy || d.checking ? ' disabled' : '') + '>Check</button>' +
+      (n > 1 ? '<button class="on" data-act="all"' + (d.busy ? ' disabled' : '') + '>Update all (' + n + ')</button>' : '') + '</div>';
+    return { cls: cls, html: h };
+  }
+
+  function renderDevices(s) {
+    var wrap = $('#devs'), ids = s.devices.map(function (d) { return d.id; });
+    Object.keys(devEls).forEach(function (id) { if (ids.indexOf(id) < 0) { devEls[id].remove(); delete devEls[id]; delete devSig[id]; } });
+    s.devices.forEach(function (d, idx) {
+      var c = cardHtml(d), sig = c.cls + '|' + c.html;
+      var el = devEls[d.id];
+      if (!el) { el = devEls[d.id] = mk('article', c.cls); el.dataset.id = d.id; el.addEventListener('click', onCardClick); }
+      if (devSig[d.id] !== sig) { devSig[d.id] = sig; el.className = c.cls; el.innerHTML = c.html; }
+      if (wrap.children[idx] !== el) wrap.insertBefore(el, wrap.children[idx] || null);
+    });
+  }
+  function onCardClick(e) {
+    var b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+    var id = this.dataset.id, d = snap.devices.filter(function (x) { return x.id === id; })[0]; if (!d) return;
+    var act = b.dataset.act;
+    if (act === 'upd') updateDevice(d, b.dataset.key);
+    else if (act === 'all') updateDevice(d);
+    else if (act === 'check') api('api/check', { id: id }).then(function (j) { report(j, 'Could not check'); });
+    else if (act === 'log') showLog(b.dataset.job, d.name + ': update log');
+    else if (act === 'trust') { if (confirm('Trust the device\'s new SSH key? Only do this if you reinstalled it or know why it changed.')) api('api/devices', { action: 'trust', id: id }).then(function (j) { report(j, 'Could not connect'); }); }
+  }
+
+  // ---------- header and alerts ----------
+  function render(s) {
+    snap = s; lastMsg = Date.now();
+    document.body.classList.remove('offline');
+    var hv = $('#hVer'), vt = s.version ? 'v' + s.version : ''; if (hv.textContent !== vt) hv.textContent = vt;
+    var n = s.devices.length, withUpd = 0, off = 0, busy = 0;
+    s.devices.forEach(function (d) { if (d.busy) busy++; if (d.status && !d.status.reachable) off++; else if (d.status && pendingCount(d)) withUpd++; });
+    var pills = [];
+    if (n) pills.push('<span class="st">' + plural(n, 'device') + '</span>');
+    if (busy) pills.push('<span class="st"><span class="dot acc"></span>' + busy + ' updating</span>');
+    if (withUpd) pills.push('<span class="st warn"><span class="dot warn"></span>' + withUpd + ' with updates</span>');
+    else if (n && !off && !busy) pills.push('<span class="st ok"><span class="dot ok"></span>All up to date</span>');
+    if (off) pills.push('<span class="st bad"><span class="dot bad"></span>' + off + ' offline</span>');
+    if (s.checkingAll) pills.push('<span class="st">Checking…</span>');
+    else if (s.lastCheckAllAt) pills.push('<span class="st">Checked ' + esc(ago(s.lastCheckAllAt)) + '</span>');
+    if (s.update && s.update.available) pills.push('<span class="st warn">LiveCompanion ' + esc(s.update.latest) + ' is available</span>');
+    var sig = pills.join('');
+    if ($('#status').dataset.sig !== sig) { $('#status').dataset.sig = sig; $('#status').innerHTML = sig; }
+    $('#updAll').classList.toggle('hide', !withUpd);
+    $('#chkAll').classList.toggle('spin', !!s.checkingAll);
+
+    $('#empty').classList.toggle('hide', n > 0);
+    if (!n) { $('#emptyMsg').textContent = 'No devices yet. Add your Companion controllers and Satellites to see their updates here.'; $('#emptyBtn').classList.remove('hide'); }
+    renderDevices(s);
+    if (inSetup) updateSettings(s);
+  }
+
+  // ---------- settings: devices ----------
+  var adAuth = 'key', adInstall = '1';
+  function paintAdd() {
+    $$('#adAuth button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === adAuth); });
+    $$('#adInstall button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === adInstall); });
+    $('#adPwRow').classList.toggle('hide', adAuth !== 'password');
+    $('#adKeyRow').classList.toggle('hide', adAuth !== 'password');
+    $('#adAuthNote').textContent = adAuth === 'key' ? 'LiveCompanion logs in with its own key (shown below). It must already be allowed on the device' : 'Logs in with a password you type here';
+  }
+  $$('#adAuth button').forEach(function (b) { b.onclick = function () { adAuth = b.dataset.v; paintAdd(); }; });
+  $$('#adInstall button').forEach(function (b) { b.onclick = function () { adInstall = b.dataset.v; paintAdd(); }; });
+  paintAdd();
+
+  $('#adGo').onclick = function () {
+    var btn = this, err = $('#adErr');
+    err.classList.add('hide');
+    var body = { action: 'add', host: $('#adHost').value.trim(), port: $('#adPort').value, user: $('#adUser').value.trim(), auth: adAuth, password: $('#adPw').value,
+      sudoPassword: $('#adSudo').value, name: $('#adName').value.trim(), installKey: adAuth === 'password' && adInstall === '1' };
+    btn.disabled = true; btn.textContent = 'Connecting…';
+    api('api/devices', body).then(function (j) {
+      btn.disabled = false; btn.textContent = 'Add device';
+      if (j.cancelled) return;
+      if (!j.ok) { err.textContent = j.error || 'Could not add it'; err.classList.remove('hide'); return; }
+      toast('Added. Found: ' + (j.found || 'a Linux device') + (j.note ? '. ' + j.note : ''), true);
+      ['adHost', 'adUser', 'adPw', 'adSudo', 'adName'].forEach(function (id) { $('#' + id).value = ''; });
+    });
+  };
+  $('#keyCopy').onclick = function () {
+    var t = $('#keyBox'); t.select();
+    try { document.execCommand('copy'); toast('Copied', true); } catch (e) { toast('Select the text and copy it'); }
+    if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(function () { toast('Copied', true); }, function () {});
+  };
+
+  function scanHtml(r) {
+    $('#scStatus').classList.toggle('hide', !(r.running || r.range));
+    $('#scStatus').textContent = r.running ? 'Searching ' + r.range + ': ' + r.done + ' of ' + r.total + ' addresses…' : r.range ? 'Searched ' + r.range + '. ' + (r.found.length ? plural(r.found.length, 'device') + ' with SSH found.' : 'Nothing with SSH turned on answered.') : '';
+    $('#scGo').textContent = r.running ? 'Stop' : 'Search';
+    $('#scResults').innerHTML = r.found.map(function (f, i) {
+      return '<div class="found"><div class="fi"><b>' + esc(f.name || f.host) + (f.hint ? ' <span class="chip t">' + esc(f.hint) + '</span>' : '') + '</b><span>' + esc(f.host + (f.system ? ' · ' + f.system : '')) + '</span></div>' +
+        (f.added ? '<span class="tag">added</span>' : '<button data-i="' + i + '">Use</button>') + '</div>';
+    }).join('');
+    $('#scResults').onclick = function (e) {
+      var b = e.target.closest('button[data-i]'); if (!b) return;
+      var f = r.found[+b.dataset.i];
+      $('#adHost').value = f.host; $('#adPort').value = f.port || 22; if (!$('#adName').value) $('#adName').value = f.name ? f.name.split('.')[0] : '';
+      $('#adUser').focus(); $('#adHost').scrollIntoView({ block: 'center' });
+    };
+    var dl = $('#scList'); if (!dl.children.length && r.ranges && r.ranges.length) { dl.innerHTML = r.ranges.map(function (x) { return '<option value="' + esc(x) + '">'; }).join(''); if (!$('#scRange').value) $('#scRange').value = r.ranges[0]; }
+  }
+  function loadScan() {
+    fetch('api/discover', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (r) {
+      scanHtml(r);
+      clearTimeout(scanTimer);
+      if (r.running) scanTimer = setTimeout(loadScan, 700);
+    }).catch(function () {});
+  }
+  $('#scGo').onclick = function () {
+    var running = this.textContent === 'Stop';
+    api('api/discover', running ? { stop: true } : { range: $('#scRange').value }).then(function (j) { report(j, 'Could not search'); loadScan(); });
+  };
+
+  function mgrHtml(d) {
+    var st = d.status, bad = st && !st.reachable;
+    return '<div class="card dcard" data-id="' + esc(d.id) + '"><h2>' + esc(d.name) + '</h2>' +
+      '<div class="set first"><div class="sl"><b>Name</b></div><div class="sc"><input class="txt wide" data-f="name" value="' + esc(d.name) + '" maxlength="40"></div></div>' +
+      '<div class="set"><div class="sl"><b>Address</b><span>SSH port at the end</span></div><div class="sc"><input class="txt wide" data-f="host" value="' + esc(d.host) + '" spellcheck="false"><input class="num" type="number" data-f="port" value="' + d.port + '"></div></div>' +
+      '<div class="set"><div class="sl"><b>User</b></div><div class="sc"><input class="txt wide" data-f="user" value="' + esc(d.user) + '" spellcheck="false" autocapitalize="off"></div></div>' +
+      '<div class="set"><div class="sl"><b>Login</b><span>' + (d.auth === 'key' ? 'Using LiveCompanion\'s key' : 'Using a stored password') + '</span></div><div class="sc"><div class="seg" data-f="auth"><button data-v="key"' + (d.auth === 'key' ? ' class="on"' : '') + '>Key</button><button data-v="password"' + (d.auth === 'password' ? ' class="on"' : '') + '>Password</button></div></div></div>' +
+      '<div class="set"><div class="sl"><b>Password</b><span>' + (d.hasPassword ? 'One is stored. Type a new one to replace it' : 'None stored') + '</span></div><div class="sc"><input class="txt wide" type="password" data-f="password" autocomplete="new-password" placeholder="unchanged"></div></div>' +
+      '<div class="set"><div class="sl"><b>Sudo password</b><span>' + (d.hasSudoPassword ? 'One is stored. Type a new one to replace it' : 'None stored (fine for root or passwordless sudo)') + '</span></div><div class="sc"><input class="txt wide" type="password" data-f="sudoPassword" autocomplete="new-password" placeholder="unchanged">' + (d.hasSudoPassword ? '<button data-act="clearSudo">Clear</button>' : '') + '</div></div>' +
+      (bad ? '<div class="formerr">Last check: ' + esc((st.error && st.error.message) || 'no answer') + '</div>' : '') +
+      '<div class="set"><div class="sl"></div><div class="sc">' +
+      (bad && st.error && st.error.kind === 'hostkey' ? '<button data-act="trust">Trust new key</button>' : '') +
+      '<button class="danger" data-act="remove">Remove</button><button class="on" data-act="save">Save</button></div></div></div>';
+  }
+  function updateMgr(s) {
+    var sig = JSON.stringify(s.devices.map(function (d) { return [d.id, d.name, d.host, d.port, d.user, d.auth, d.hasPassword, d.hasSudoPassword, d.status && d.status.reachable, d.status && d.status.error && d.status.error.message]; }));
+    var box = $('#devMgr');
+    if (sig === mgrSig || box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+    mgrSig = sig;
+    box.innerHTML = s.devices.length ? '<div class="note pnote">Your devices</div>' + s.devices.map(mgrHtml).join('') : '';
+  }
+  $('#devMgr').addEventListener('click', function (e) {
+    var seg = e.target.closest('.seg[data-f=auth] button');
+    if (seg) { $$('button', seg.parentNode).forEach(function (b) { b.classList.toggle('on', b === seg); }); return; }
+    var b = e.target.closest('button[data-act]'); if (!b) return;
+    var card = b.closest('.dcard'), id = card.dataset.id, act = b.dataset.act;
+    var get = function (f) { var el = $('[data-f=' + f + ']', card); return el ? el.value : ''; };
+    if (act === 'save') {
+      var auth = $('.seg[data-f=auth] button.on', card).dataset.v;
+      b.disabled = true;
+      api('api/devices', { action: 'edit', id: id, name: get('name'), host: get('host').trim(), port: get('port'), user: get('user').trim(), auth: auth, password: get('password'), sudoPassword: get('sudoPassword') })
+        .then(function (j) { b.disabled = false; if (j.ok) { toast('Saved', true); mgrSig = ''; } else report(j, 'Could not save'); });
+    } else if (act === 'remove') {
+      if (!confirm('Remove this device from LiveCompanion? Its saved backups stay on the server.')) return;
+      api('api/devices', { action: 'remove', id: id }).then(function (j) { report(j, 'Could not remove'); mgrSig = ''; });
+    } else if (act === 'trust') {
+      if (!confirm('Trust the device\'s new SSH key? Only do this if you reinstalled it or know why it changed.')) return;
+      api('api/devices', { action: 'trust', id: id }).then(function (j) { report(j, 'Could not connect'); });
+    } else if (act === 'clearSudo') {
+      api('api/devices', { action: 'edit', id: id, clearSudo: true, force: true }).then(function (j) { report(j, 'Could not clear it'); mgrSig = ''; });
+    }
+  });
+
+  // ---------- settings: email ----------
+  var emOn = '0', emSec = 'starttls', emSelf = '0';
+  function paintEmailSegs() {
+    $$('#emOn button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === emOn); });
+    $$('#emSec button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === emSec); });
+    $$('#emSelf button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === emSelf); });
+  }
+  $$('#emOn button').forEach(function (b) { b.onclick = function () { emOn = b.dataset.v; paintEmailSegs(); }; });
+  $$('#emSec button').forEach(function (b) { b.onclick = function () { emSec = b.dataset.v; paintEmailSegs(); }; });
+  $$('#emSelf button').forEach(function (b) { b.onclick = function () { emSelf = b.dataset.v; paintEmailSegs(); }; });
+  function loadEmail(s) {
+    var e = s.settings.email;
+    emOn = e.enabled ? '1' : '0'; emSec = e.secure; emSelf = e.allowSelfSigned ? '1' : '0';
+    $('#emHost').value = e.host; $('#emPort').value = e.port; $('#emUser').value = e.user; $('#emPass').value = ''; $('#emPass').placeholder = e.hasPass ? 'stored' : 'password';
+    $('#emFrom').value = e.from; $('#emTo').value = e.to; paintEmailSegs(); emailLoaded = true;
+  }
+  function saveEmail() {
+    return api('api/email', { enabled: emOn === '1', host: $('#emHost').value, port: $('#emPort').value, secure: emSec, user: $('#emUser').value, pass: $('#emPass').value,
+      from: $('#emFrom').value, to: $('#emTo').value, allowSelfSigned: emSelf === '1' });
+  }
+  $('#emSave').onclick = function () { saveEmail().then(function (j) { if (j.ok) { toast('Saved', true); $('#emPass').value = ''; } else report(j, 'Could not save'); }); };
+  $('#emTest').onclick = function () {
+    var b = this; b.disabled = true; b.textContent = 'Sending…';
+    saveEmail().then(function (j) {
+      if (!j.ok) { b.disabled = false; b.textContent = 'Send test email'; return report(j, 'Could not save'); }
+      return api('api/email-test', {}).then(function (t) { b.disabled = false; b.textContent = 'Send test email'; if (t.ok) toast('Test email sent', true); else report(t, 'Could not send'); });
+    });
+  };
+
+  // ---------- settings: backups and activity ----------
+  function updateBackups(s) {
+    var sig = JSON.stringify(s.devices.map(function (d) { return d.id + d.name; })) + (s.jobs[0] ? s.jobs[0].id + s.jobs[0].status : '');
+    if (sig === bkSig) return; bkSig = sig;
+    var box = $('#bkPane');
+    if (!s.devices.length) { box.innerHTML = '<div class="card"><div class="note">No devices yet.</div></div>'; return; }
+    box.innerHTML = s.devices.map(function (d) { return '<div class="card"><h2>' + esc(d.name) + '</h2><div data-bk="' + esc(d.id) + '" class="note">Loading…</div></div>'; }).join('');
+    s.devices.forEach(function (d) {
+      fetch('api/backups?id=' + encodeURIComponent(d.id), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        var el = $('[data-bk="' + d.id + '"]'); if (!el) return;
+        var list = j.backups || [];
+        el.className = '';
+        el.innerHTML = list.length ? list.map(function (b) {
+          return '<div class="bk"><span>' + esc(b.file) + ' <small>' + Math.max(1, Math.round(b.bytes / 1024)) + ' KB, ' + esc(new Date(b.at).toLocaleString()) + '</small></span><a href="api/backup?id=' + encodeURIComponent(d.id) + '&file=' + encodeURIComponent(b.file) + (pin ? '&pin=' + encodeURIComponent(pin) : '') + '">Download</a></div>';
+        }).join('') : '<div class="note">No backups yet. One is made before Companion or Satellite is updated.</div>';
+      }).catch(function () {});
+    });
+  }
+  function updateActivity(s) {
+    var sig = JSON.stringify(s.jobs.map(function (j) { return [j.id, j.status, j.summary]; }));
+    if (sig === actSig) return; actSig = sig;
+    $('#actList').innerHTML = s.jobs.length ? s.jobs.map(function (j) {
+      var col = j.status === 'done' ? 'var(--ok)' : j.status === 'failed' ? 'var(--bad)' : 'var(--acc)';
+      return '<div class="act" data-job="' + esc(j.id) + '" data-name="' + esc(j.name) + '"><span class="dot" style="background:' + col + '"></span><div class="ai"><b>' + esc(j.name) + '</b><span>' + esc((j.status === 'running' || j.status === 'queued' ? 'Running: ' : '') + (j.summary || j.steps.map(function (x) { return x.label; }).join(', '))) + '</span></div><span class="note">' + esc(j.startedAt ? ago(j.startedAt) : '') + '</span></div>';
+    }).join('') : '<div class="note">Nothing has been updated yet.</div>';
+  }
+  $('#actList').addEventListener('click', function (e) { var a = e.target.closest('.act'); if (a) showLog(a.dataset.job, a.dataset.name + ': update log'); });
+
+  // ---------- settings: general ----------
+  var schOn = '1', refOn = '1', bkOn = '1';
+  function paintSettingsSegs() {
+    $$('#themeSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === themePref); });
+    $$('#schOn button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === schOn); });
+    $$('#refSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === refOn); });
+    $$('#bkOn button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === bkOn); });
+  }
+  var settingsLoaded = false;
+  function loadSettings(s) {
+    var c = s.settings;
+    schOn = c.schedule.enabled ? '1' : '0'; refOn = c.refreshLists ? '1' : '0'; bkOn = c.backup.enabled ? '1' : '0';
+    $('#schTime').value = c.schedule.time; $('#bkKeep').value = c.backup.keep; paintSettingsSegs(); settingsLoaded = true;
+  }
+  function updateSettings(s) {
+    if (subPane === 'devices') { updateMgr(s); $('#keyBox').value = s.sshKey || 'The key is created when LiveCompanion starts. Reload this page in a moment.'; }
+    else if (subPane === 'email') { if (!emailLoaded) loadEmail(s); }
+    else if (subPane === 'backups') updateBackups(s);
+    else if (subPane === 'activity') updateActivity(s);
+    else {
+      if (!settingsLoaded) loadSettings(s);
+      $('#pinNote').textContent = s.pinRequired ? 'Required before anything is changed. Enter a new one to change it' : 'Not set: anyone on this network can run updates. At least 4 characters';
+      $('#pinNote').style.color = s.pinRequired ? 'var(--ok)' : '';
+      $('#pinSet').textContent = s.pinRequired ? 'Change' : 'Set';
+      $('#pinRm').classList.toggle('hide', !s.pinRequired);
+      $('#verVal').textContent = s.version || '';
+      var u = s.update, un = $('#updNote');
+      $('#updRow').classList.toggle('hide', !u || !u.enabled);
+      if (u && u.enabled) {
+        un.textContent = u.available ? 'Version ' + u.latest + ' is available' : u.failed && !u.latest ? 'Could not reach GitHub to check' : u.latest ? 'You are up to date' : 'Checking…';
+        un.style.color = u.available ? 'var(--warn)' : '';
+      }
+      var showHow = !!(u && u.enabled && u.available);
+      $('#updHow').classList.toggle('hide', !showHow);
+      if (showHow) $('#updImg').value = u.image;
+      $('#modeVal').textContent = s.demo ? 'Demo' : 'Live';
+      $('#modeNote').textContent = s.demo ? 'Simulated devices. Start LiveCompanion without --demo and add yours under Devices' : 'Talking to your devices over SSH';
+    }
+  }
+  function saveSettings(patch) { return api('api/settings', patch).then(function (j) { report(j, 'Could not save'); return j; }); }
+  $$('#themeSeg button').forEach(function (b) { b.onclick = function () { themePref = b.dataset.v; try { localStorage.setItem('lc-theme', themePref); } catch (e) {} applyTheme(); paintSettingsSegs(); }; });
+  $$('#schOn button').forEach(function (b) { b.onclick = function () { schOn = b.dataset.v; paintSettingsSegs(); saveSettings({ schedule: { enabled: schOn === '1' } }); }; });
+  $('#schTime').addEventListener('change', function () { if (this.value) saveSettings({ schedule: { time: this.value } }); });
+  $$('#refSeg button').forEach(function (b) { b.onclick = function () { refOn = b.dataset.v; paintSettingsSegs(); saveSettings({ refreshLists: refOn === '1' }); }; });
+  $$('#bkOn button').forEach(function (b) { b.onclick = function () { bkOn = b.dataset.v; paintSettingsSegs(); saveSettings({ backup: { enabled: bkOn === '1' } }); }; });
+  $('#bkKeep').addEventListener('change', function () { saveSettings({ backup: { keep: parseInt(this.value, 10) } }); });
+  $('#pinSet').onclick = function () {
+    var v = $('#pinNew').value;
+    if (v.length < 4) { toast('A PIN needs at least 4 characters'); return; }
+    api('api/settings', { newPin: v }).then(function (j) {
+      report(j, 'Could not set the PIN');
+      if (j.ok) { pin = v; try { sessionStorage.setItem('lc-pin', v); } catch (e) {} $('#pinNew').value = ''; toast('PIN set', true); }
+    });
+  };
+  $('#pinNew').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#pinSet').click(); });
+  $('#pinRm').onclick = function () {
+    if (!confirm('Remove the control PIN? Anyone on this network will be able to run updates.')) return;
+    api('api/settings', { newPin: null }).then(function (j) { report(j, 'Could not remove the PIN'); if (j.ok) { pin = ''; try { sessionStorage.removeItem('lc-pin'); } catch (e) {} } });
+  };
+  $('#updImg').addEventListener('focus', function () { this.select(); });
+  $('#updBtn').onclick = function () {
+    var b = this; b.disabled = true; b.textContent = 'Checking…';
+    api('api/update-check', {}).then(function (j) { b.disabled = false; b.textContent = 'Check now'; if (!j.ok && !j.cancelled) toast(j.error || 'Could not check'); });
+  };
+
+  // ---------- buttons in the header ----------
+  $('#chkAll').onclick = function () { api('api/check', {}).then(function (j) { report(j, 'Could not check'); if (j.ok) toast('Checking all devices…', true); }); };
+  $('#updAll').onclick = updateEverything;
+  $('#emptyBtn').onclick = function () { showTab(true); showSub('devices'); };
+
+  var gear = $('#gear');
+  function showSub(name) {
+    subPane = name; try { localStorage.setItem('lc-sub', name); } catch (e) {}
+    $$('#sub button').forEach(function (b) { b.classList.toggle('on', b.dataset.sub === name); });
+    $$('[data-pane]').forEach(function (p) { p.classList.toggle('hide', p.dataset.pane !== name); });
+    if (name === 'devices') { mgrSig = ''; if (!scanLoaded) { scanLoaded = true; } loadScan(); }
+    if (name === 'email') emailLoaded = false;
+    if (name === 'backups') bkSig = '';
+    if (name === 'activity') actSig = '';
+    if (name === 'settings') { settingsLoaded = false; paintSettingsSegs(); }
+    if (snap) updateSettings(snap);
+  }
+  $$('#sub button').forEach(function (b) { b.onclick = function () { showSub(b.dataset.sub); }; });
+  function showTab(setup) {
+    inSetup = setup;
+    $('#tab-main').classList.toggle('hide', setup); $('#tab-setup').classList.toggle('hide', !setup);
+    gear.classList.toggle('on', setup); gear.title = setup ? 'Back to the dashboard' : 'Settings';
+    $('#updAll').classList.toggle('hide', setup || $('#updAll').classList.contains('hide'));
+    if (setup) showSub(subPane); else if (snap) render(snap);
+    window.scrollTo(0, 0);
+  }
+  gear.onclick = function () { showTab(!inSetup); };
+
+  // full screen (hidden where the browser can't, or when installed as an app)
+  (function () {
+    var root = document.documentElement, d = document, btn = $('#fsBtn');
+    var can = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+    var standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
+    if (!can || standalone) { btn.classList.add('hide'); return; }
+    btn.onclick = function () {
+      if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      else { var r = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (r && r.catch) r.catch(function () {}); }
+    };
+  })();
+
+  // ---------- live data ----------
+  function start(first) {
+    mode = 'live';
+    render(first);
+    var es = new EventSource('events');
+    es.onmessage = function (e) { render(JSON.parse(e.data)); };
+    setInterval(function () { if (Date.now() - lastMsg > 5000) document.body.classList.add('offline'); }, 1000);
+    // keep "checked 5 min ago" fresh even when nothing else changes
+    setInterval(function () { if (snap && !inSetup) { Object.keys(devSig).forEach(function (k) { devSig[k] = ''; }); render(snap); } }, 30000);
+  }
+  applyTheme(); paintSettingsSegs();
+  fetch('api/state', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('no server'); return r.json(); })
+    .then(start)
+    .catch(function () { $('#empty').classList.remove('hide'); $('#emptyMsg').textContent = 'Could not reach the LiveCompanion server. Open this page from the address LiveCompanion is running on.'; });
+})();
+</script>
+</body>
+</html>
