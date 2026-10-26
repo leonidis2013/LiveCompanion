@@ -51,6 +51,11 @@ else
   kv pkg_mgr none
 fi
 
+# Home folders of the companion / satellite users are often private (mode 700 on Debian 12),
+# so a normal login cannot even see inside them: look as root when needed.
+isdir() { [ -d "$1" ] || as_root test -d "$1" >/dev/null 2>&1; }
+isfile() { [ -f "$1" ] || as_root test -f "$1" >/dev/null 2>&1; }
+
 # ---- Companion (controller), installed with Companion Pi ----
 if [ -f "$R/opt/companion/BUILD" ] || [ -d "$R/usr/local/src/companionpi" ] || [ -d "$R/usr/local/src/companion" ]; then
   kv companion_present 1
@@ -59,8 +64,8 @@ if [ -f "$R/opt/companion/BUILD" ] || [ -d "$R/usr/local/src/companionpi" ] || [
   if [ -d "$R/usr/local/src/companion" ]; then kv companion_legacy 1; fi
   kv companion_service "$(systemctl is-active companion 2>/dev/null)"
   kv companion_port "$(sed -n 's/^[[:space:]]*adminPort:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$R/etc/companion/config.yaml" 2>/dev/null | head -1)"
-  if [ -d "$R/home/companion/.config/companion-nodejs" ]; then kv companion_cfg "/home/companion/.config/companion-nodejs"
-  elif [ -d "$R/home/companion/companion" ]; then kv companion_cfg "/home/companion/companion"; fi
+  if isdir "$R/home/companion/.config/companion-nodejs"; then kv companion_cfg "/home/companion/.config/companion-nodejs"
+  elif isdir "$R/home/companion/companion"; then kv companion_cfg "/home/companion/companion"; fi
 fi
 
 # ---- Companion Satellite ----
@@ -69,8 +74,8 @@ if [ -d "$R/opt/companion-satellite" ] || [ -d "$R/usr/local/src/companion-satel
   kv satellite_build "$(head -1 "$R/opt/companion-satellite/BUILD" 2>/dev/null)"
   if [ -d "$R/usr/local/src/companion-satellite" ]; then kv satellite_managed 1; else kv satellite_managed 0; fi
   kv satellite_service "$(systemctl is-active satellite 2>/dev/null)"
-  kv satellite_port "$(sed -n 's/.*"httpPort"[^0-9]*\([0-9][0-9]*\).*/\1/p' "$R/home/satellite/satellite-config.json" 2>/dev/null | head -1)"
-  if [ -f "$R/home/satellite/satellite-config.json" ]; then kv satellite_cfg "/home/satellite/satellite-config.json"; fi
+  kv satellite_port "$( (cat "$R/home/satellite/satellite-config.json" 2>/dev/null || as_root cat "$R/home/satellite/satellite-config.json" 2>/dev/null) | sed -n 's/.*"httpPort"[^0-9]*\([0-9][0-9]*\).*/\1/p' | head -1)"
+  if isfile "$R/home/satellite/satellite-config.json"; then kv satellite_cfg "/home/satellite/satellite-config.json"; fi
 fi
 
 # ---- Companion or Satellite running in Docker ----
