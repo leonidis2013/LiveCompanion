@@ -149,6 +149,13 @@ test('probe: a stopped Satellite next to Companion is not counted as pending', a
   assert.strictEqual(Probe.pendingItems(st).length, 1);
 });
 
+test('probe: a stable build with build metadata that matches the feed is up to date, not "beta"', async () => {
+  const p = Probe.parse('uid=0\ncompanion_present=1\ncompanion_build=5.1.1+9012-stable-abc\ncompanion_managed=1\ncompanion_service=active\nlc_done=1\n');
+  const st = await Probe.buildStatus({ host: 'h', user: 'root' }, p, async () => ({ ok: true, latest: { version: 'v5.1.1' } }));
+  assert.ok(!st.installs[0].available);
+  assert.strictEqual(st.installs[0].note, '');
+});
+
 test('probe: docker line parsing and TrueNAS refusal', async () => {
   const line = 'abc123def4567890|companion|ghcr.io/bitfocus/companion:latest|running|/srv/c|companion|4.3.4|ghcr.io/bitfocus/companion@sha256:aaa|bbb';
   const p = Probe.parse('uid=0\ndocker_ok=1\ndocker=' + line + '\ndocker=' + line.replace('/srv/c', '/mnt/.ix-apps/app_configs/x') + '\n');
