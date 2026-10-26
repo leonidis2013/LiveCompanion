@@ -169,7 +169,7 @@ async function addDevice(b) {
   const v = validateConn(b);
   if (v.error) return { ok: false, error: v.error };
   if (v.auth === 'password' && !b.password) return { ok: false, error: 'Enter the password for ' + v.user };
-  if (cfg.devices.some((d) => d.host === v.host && (d.port || 22) === v.port && d.user === v.user)) return { ok: false, error: 'That device is already added' };
+  if (cfg.devices.some((d) => d.host.toLowerCase() === v.host.toLowerCase() && (d.port || 22) === v.port)) return { ok: false, error: 'That device is already added. Change its login under Your devices instead' };
   if (cfg.devices.length >= 60) return { ok: false, error: 'That is a lot of devices. The limit is 60' };
   const dev = Object.assign({ id: newId(), name: clean(b.name, 40) }, v, { password: secrets.enc(b.password || ''), sudoPassword: secrets.enc(b.sudoPassword || '') });
   if (dev.auth === 'key' && !ssh.publicKey()) await ssh.ensureKey();

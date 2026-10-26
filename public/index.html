@@ -636,6 +636,7 @@
       if (!j.ok) { err.textContent = j.error || 'Could not add it'; err.classList.remove('hide'); return; }
       toast('Added. Found: ' + (j.found || 'a Linux device') + (j.note ? '. ' + j.note : ''), true);
       ['adHost', 'adUser', 'adPw', 'adSudo', 'adName'].forEach(function (id) { $('#' + id).value = ''; });
+      loadScan();
     });
   };
   $('#keyCopy').onclick = function () {
@@ -645,12 +646,15 @@
   };
 
   function scanHtml(r) {
+    var all = r.found.length;
+    r = Object.assign({}, r, { found: r.found.filter(function (f) { return !f.added; }) });
+    r.hidden = all - r.found.length;
     $('#scStatus').classList.toggle('hide', !(r.running || r.range));
-    $('#scStatus').textContent = r.running ? 'Searching ' + r.range + ': ' + r.done + ' of ' + r.total + ' addresses…' : r.range ? 'Searched ' + r.range + '. ' + (r.found.length ? plural(r.found.length, 'device') + ' with SSH found.' : 'Nothing with SSH turned on answered.') : '';
+    $('#scStatus').textContent = r.running ? 'Searching ' + r.range + ': ' + r.done + ' of ' + r.total + ' addresses…' : r.range ? 'Searched ' + r.range + '. ' + (r.found.length ? plural(r.found.length, 'new device') + ' with SSH found.' : r.hidden ? 'Every device found is already added.' : 'Nothing with SSH turned on answered.') : '';
     $('#scGo').textContent = r.running ? 'Stop' : 'Search';
     $('#scResults').innerHTML = r.found.map(function (f, i) {
       return '<div class="found"><div class="fi"><b>' + esc(f.name || f.host) + (f.hint ? ' <span class="chip t">' + esc(f.hint) + '</span>' : '') + '</b><span>' + esc(f.host + (f.system ? ' · ' + f.system : '')) + '</span></div>' +
-        (f.added ? '<span class="tag">added</span>' : '<button data-i="' + i + '">Use</button>') + '</div>';
+        '<button data-i="' + i + '">Use</button>' + '</div>';
     }).join('');
     $('#scResults').onclick = function (e) {
       var b = e.target.closest('button[data-i]'); if (!b) return;

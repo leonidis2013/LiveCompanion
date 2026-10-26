@@ -1,6 +1,6 @@
 {
   "name": "livecompanion",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Central dashboard to find, check and update Bitfocus Companion controllers, Satellites and their Linux hosts over SSH",
   "main": "server.js",
   "scripts": {
