@@ -141,6 +141,14 @@ test('probe: no Bitfocus software, not root without sudo, beta build', async () 
   assert.ok(!s2.os.canUpdate);
 });
 
+test('probe: a stopped Satellite next to Companion is not counted as pending', async () => {
+  const p = Probe.parse('uid=0\npkg_mgr=apt\napt_count=0\ncompanion_present=1\ncompanion_build=v5.0.6\ncompanion_managed=1\ncompanion_service=active\nsatellite_present=1\nsatellite_build=v3.0.1\nsatellite_managed=1\nsatellite_service=failed\nlc_done=1\n');
+  const st = await Probe.buildStatus({ host: 'h', user: 'root' }, p, async (prod) => ({ ok: true, latest: { version: prod === 'companion' ? 'v5.1.1' : 'v3.6.1' } }));
+  const sat = st.installs.find((i) => i.kind === 'satellite');
+  assert.ok(sat.available && sat.secondary);
+  assert.strictEqual(Probe.pendingItems(st).length, 1);
+});
+
 test('probe: docker line parsing and TrueNAS refusal', async () => {
   const line = 'abc123def4567890|companion|ghcr.io/bitfocus/companion:latest|running|/srv/c|companion|4.3.4|ghcr.io/bitfocus/companion@sha256:aaa|bbb';
   const p = Probe.parse('uid=0\ndocker_ok=1\ndocker=' + line + '\ndocker=' + line.replace('/srv/c', '/mnt/.ix-apps/app_configs/x') + '\n');

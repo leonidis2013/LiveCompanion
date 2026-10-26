@@ -392,8 +392,8 @@
     if (!st || !st.reachable) return out;
     (st.installs || []).forEach(function (i) {
       if (!i.available || !i.canUpdate) return;
-      out.push({ key: i.id, title: i.docker ? 'Update ' + i.label + ' (' + i.name + ')' : 'Update ' + i.label + ' ' + short(i.version) + ' to ' + short(i.latest),
-        desc: i.docker ? DESC.docker : (i.kind === 'satellite' ? DESC.satellite : DESC.controller), checked: true });
+      out.push({ optional: !!i.secondary, key: i.id, title: i.docker ? 'Update ' + i.label + ' (' + i.name + ')' : 'Update ' + i.label + ' ' + short(i.version) + ' to ' + short(i.latest),
+        desc: i.docker ? DESC.docker : (i.kind === 'satellite' ? DESC.satellite : DESC.controller), checked: !i.secondary });
     });
     if (st.os && st.os.supported && st.os.canUpdate && st.os.count > 0) {
       out.push({ key: 'os', title: 'Install ' + plural(st.os.count, 'operating system update') + (st.os.security ? ' (' + st.os.security + ' security)' : ''), desc: DESC.os, checked: true });
@@ -516,6 +516,8 @@
         var open = i.url && st.reachable && !i.docker ? ' <a href="' + esc(i.url) + '" target="_blank" rel="noopener">open</a>' : '';
         if (i.docker) {
           v = '<span>' + esc(short(i.version) || i.image) + '</span>' + (i.available ? '<span class="arrow">→</span><b class="up">newer image</b>' : i.unknown ? '' : '<span class="good"> · current</span>') + '<small>' + esc(i.name + ' · ' + i.service) + (i.unknown ? ' · not compared yet' : '') + '</small>';
+        } else if (i.available && i.secondary) {
+          v = '<span>' + esc(short(i.version) || 'unknown') + '</span><span class="arrow">→</span><span>' + esc(short(i.latest)) + '</span><small>' + esc(i.note) + '</small>';
         } else if (i.available) {
           v = '<span>' + esc(short(i.version) || 'unknown') + '</span><span class="arrow">→</span><b class="up">' + esc(short(i.latest)) + '</b>' + open + '<small>' + esc(i.service !== 'active' ? 'service ' + i.service : '') + '</small>';
         } else {
@@ -523,7 +525,7 @@
           v = '<span>' + esc(short(i.version) || 'unknown') + '</span>' + open + '<small' + (tail === 'up to date' ? ' class="good" style="color:var(--ok)"' : '') + '>' + esc(tail) + (i.service !== 'active' ? ' · service ' + esc(i.service) : '') + '</small>';
         }
         var a = '';
-        if (i.available && i.canUpdate) a = '<button class="on" data-act="upd" data-key="' + esc(i.id) + '"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Update</button>';
+        if (i.available && i.canUpdate) a = '<button class="' + (i.secondary ? '' : 'on') + '" data-act="upd" data-key="' + esc(i.id) + '"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Update</button>';
         else if (i.available && !i.canUpdate) a = '<span class="tag" title="' + esc(i.why) + '">can\'t update</span>';
         else if (i.why && !i.canUpdate) a = '<span class="tag" title="' + esc(i.why) + '">manual</span>';
         rows += rowHtml(i.label.replace(' (Docker)', ''), v, a);
