@@ -200,7 +200,7 @@
     .sc .seg button { min-height:34px; padding:4px 10px; font-size:14px; }
     .row button, .df button { min-height:34px; }
     .set.feat { flex-wrap:nowrap; } .set.feat .sl { flex:1 1 0; } .set.feat .sc { flex:0 0 auto; }
-    body.setup #status { display:none; }
+    body.in-setup #status { display:none; }
   }
 </style>
 </head>
@@ -926,7 +926,7 @@
     inSetup = setup;
     $('#tab-main').classList.toggle('hide', setup); $('#tab-setup').classList.toggle('hide', !setup);
     gear.classList.toggle('on', setup); gear.title = setup ? 'Back to the dashboard' : 'Settings';
-    document.body.classList.toggle('setup', setup);
+    document.body.classList.toggle('in-setup', setup);
     if (snap) $('#updAll').classList.toggle('hide', setup || !snap.devices.some(function (d) { return d.status && d.status.reachable && pendingCount(d); }));
     if (setup) showSub(subPane); else if (snap) render(snap);
     window.scrollTo(0, 0);
