@@ -145,7 +145,7 @@ test('probe: a stopped Satellite next to Companion is not counted as pending', a
   const p = Probe.parse('uid=0\npkg_mgr=apt\napt_count=0\ncompanion_present=1\ncompanion_build=v5.0.6\ncompanion_managed=1\ncompanion_service=active\nsatellite_present=1\nsatellite_build=v3.0.1\nsatellite_managed=1\nsatellite_service=failed\nlc_done=1\n');
   const st = await Probe.buildStatus({ host: 'h', user: 'root' }, p, async (prod) => ({ ok: true, latest: { version: prod === 'companion' ? 'v5.1.1' : 'v3.6.1' } }));
   const sat = st.installs.find((i) => i.kind === 'satellite');
-  assert.ok(sat.available && sat.secondary);
+  assert.ok(sat.secondary && !sat.available && sat.note === 'Not running');
   assert.strictEqual(Probe.pendingItems(st).length, 1);
 });
 
