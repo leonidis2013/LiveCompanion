@@ -391,14 +391,14 @@
     var st = d.status, out = [];
     if (!st || !st.reachable) return out;
     (st.installs || []).forEach(function (i) {
-      if (!i.available || !i.canUpdate) return;
+      if (!i.available || !i.canUpdate || i.hidden) return;
       out.push({ key: i.id, title: i.docker ? 'Update ' + i.label + ' (' + i.name + ')' : 'Update ' + i.label + ' ' + short(i.version) + ' to ' + short(i.latest),
         desc: i.docker ? DESC.docker : (i.kind === 'satellite' ? DESC.satellite : DESC.controller), checked: true });
     });
-    if (st.os && st.os.supported && st.os.canUpdate && st.os.count > 0) {
+    if (st.os && !st.os.disabled && st.os.supported && st.os.canUpdate && st.os.count > 0) {
       out.push({ key: 'os', title: 'Install ' + plural(st.os.count, 'operating system update') + (st.os.security ? ' (' + st.os.security + ' security)' : ''), desc: DESC.os, checked: true });
     }
-    if (st.reboot && st.reboot.required) out.push({ key: 'reboot', title: 'Reboot the device', desc: DESC.reboot, checked: false, optional: true });
+    if (st.reboot && !st.reboot.disabled && st.reboot.required) out.push({ key: 'reboot', title: 'Reboot the device', desc: DESC.reboot, checked: false, optional: true });
     return out;
   }
   function pendingCount(d) { return stepsFor(d).filter(function (s) { return !s.optional; }).length; }
@@ -500,7 +500,7 @@
       h += '<div class="note">Not checked yet.</div>';
     } else {
       var chips = '';
-      (st.installs || []).forEach(function (i) { chips += '<span class="chip t">' + esc(i.docker ? (i.kind === 'satellite' ? 'Satellite' : 'Controller') + ' · Docker' : i.kind === 'satellite' ? 'Satellite' : 'Controller') + '</span>'; });
+      (st.installs || []).filter(function (i) { return !i.hidden; }).forEach(function (i) { chips += '<span class="chip t">' + esc(i.docker ? (i.kind === 'satellite' ? 'Satellite' : 'Controller') + ' · Docker' : i.kind === 'satellite' ? 'Satellite' : 'Controller') + '</span>'; });
       if (st.sys && st.sys.os) chips += '<span class="chip">' + esc(st.sys.os.replace(/\s*\(.*\)$/, '')) + '</span>';
       if (st.sys && st.sys.arch) chips += '<span class="chip">' + esc(st.sys.arch) + '</span>';
       if (chips) h += '<div class="chips">' + chips + '</div>';
@@ -511,7 +511,7 @@
           (e.kind === 'hostkey' ? '<br><button data-act="trust">Trust the new key</button>' : '') + '</div>';
       }
       var rows = '';
-      (st.installs || []).forEach(function (i) {
+      (st.installs || []).filter(function (i) { return !i.hidden; }).forEach(function (i) {
         var v;
         var open = i.url && st.reachable && !i.docker ? ' <a href="' + esc(i.url) + '" target="_blank" rel="noopener">open</a>' : '';
         if (i.docker) {
@@ -528,7 +528,7 @@
         else if (i.why && !i.canUpdate) a = '<span class="tag" title="' + esc(i.why) + '">manual</span>';
         rows += rowHtml(i.label.replace(' (Docker)', ''), v, a);
       });
-      if (st.os) {
+      if (st.os && !st.os.disabled) {
         var ov, oa = '';
         if (!st.os.supported) { ov = '<span>not managed</span><small>' + esc(st.os.why) + '</small>'; }
         else if (st.os.count > 0) {
@@ -540,11 +540,11 @@
         }
         rows += rowHtml('System', ov, oa);
       }
-      if (st.reboot && st.reboot.required) {
+      if (st.reboot && !st.reboot.disabled && st.reboot.required) {
         rows += rowHtml('Reboot', '<b class="up">needed</b><small>' + esc(st.reboot.why === 'kernel' ? 'a newer kernel is installed' : (st.reboot.packages || []).join(', ') || 'after updates') + '</small>', '<button data-act="upd" data-key="reboot"' + (d.busy || !st.reachable ? ' disabled' : '') + '>Reboot</button>');
       }
       if (rows) h += '<div class="rows">' + rows + '</div>';
-      else if (st.reachable) h += '<div class="note">Nothing from Bitfocus found on this device. It is still checked for operating system updates.</div>';
+      else if (st.reachable) h += '<div class="note">' + ((st.installs || []).length ? 'Everything on this device is turned off. Turn things back on in Settings > Devices.' : 'Nothing from Bitfocus found on this device. It is still checked for operating system updates.') + '</div>';
       (st.feedNotes || []).forEach(function (n2) { h += '<div class="note">' + esc(n2) + '</div>'; });
     }
 
@@ -676,6 +676,26 @@
     api('api/discover', running ? { stop: true } : { range: $('#scRange').value }).then(function (j) { report(j, 'Could not search'); loadScan(); });
   };
 
+  // what LiveCompanion watches on a device: everything it found, each with an on / off switch
+  function featureList(d) {
+    var st = d.status, off = d.off || [], out = [];
+    if (!st) return out;
+    (st.installs || []).forEach(function (i) {
+      var auto = i.secondary && off.indexOf(i.id) < 0;
+      out.push({ id: i.id, label: i.docker ? i.label + ' (' + i.name + ')' : i.label, sub: (short(i.version) ? 'version ' + short(i.version) : '') + (auto ? (short(i.version) ? ', ' : '') + 'not running, so hidden automatically' : ''), on: off.indexOf(i.id) < 0 });
+    });
+    if (st.os) out.push({ id: 'os', label: 'Operating system updates', sub: st.os.supported ? 'apt update and upgrade' : 'not available on this system', on: off.indexOf('os') < 0 });
+    out.push({ id: 'reboot', label: 'Reboot prompts', sub: 'show "reboot needed" and the Reboot button', on: off.indexOf('reboot') < 0 });
+    return out;
+  }
+  function featuresHtml(d) {
+    var list = featureList(d);
+    if (!list.length) return '<div class="set"><div class="sl"><b>Watching</b><span>Run a check on this device to list what it has</span></div></div>';
+    return '<div class="set"><div class="sl"><b>Watching</b><span>Turn off what you do not want shown, counted or updated on this device</span></div></div>' + list.map(function (f) {
+      return '<div class="set"><div class="sl"><b>' + esc(f.label) + '</b><span>' + esc(f.sub) + '</span></div><div class="sc"><div class="seg" data-feat="' + esc(f.id) + '"><button data-v="1"' + (f.on ? ' class="on"' : '') + '>On</button><button data-v="0"' + (f.on ? '' : ' class="on"') + '>Off</button></div></div></div>';
+    }).join('');
+  }
+
   function mgrHtml(d) {
     var st = d.status, bad = st && !st.reachable;
     return '<div class="card dcard" data-id="' + esc(d.id) + '"><h2>' + esc(d.name) + '</h2>' +
@@ -685,19 +705,31 @@
       '<div class="set"><div class="sl"><b>Login</b><span>' + (d.auth === 'key' ? 'Using LiveCompanion\'s key' : 'Using a stored password') + '</span></div><div class="sc"><div class="seg" data-f="auth"><button data-v="key"' + (d.auth === 'key' ? ' class="on"' : '') + '>Key</button><button data-v="password"' + (d.auth === 'password' ? ' class="on"' : '') + '>Password</button></div></div></div>' +
       '<div class="set"><div class="sl"><b>Password</b><span>' + (d.hasPassword ? 'One is stored. Type a new one to replace it' : 'None stored') + '</span></div><div class="sc"><input class="txt wide" type="password" data-f="password" autocomplete="new-password" placeholder="unchanged"></div></div>' +
       '<div class="set"><div class="sl"><b>Sudo password</b><span>' + (d.hasSudoPassword ? 'One is stored. Type a new one to replace it' : 'None stored (fine for root or passwordless sudo)') + '</span></div><div class="sc"><input class="txt wide" type="password" data-f="sudoPassword" autocomplete="new-password" placeholder="unchanged">' + (d.hasSudoPassword ? '<button data-act="clearSudo">Clear</button>' : '') + '</div></div>' +
+      featuresHtml(d) +
       (bad ? '<div class="formerr">Last check: ' + esc((st.error && st.error.message) || 'no answer') + '</div>' : '') +
       '<div class="set"><div class="sl"></div><div class="sc">' +
       (bad && st.error && st.error.kind === 'hostkey' ? '<button data-act="trust">Trust new key</button>' : '') +
       '<button class="danger" data-act="remove">Remove</button><button class="on" data-act="save">Save</button></div></div></div>';
   }
   function updateMgr(s) {
-    var sig = JSON.stringify(s.devices.map(function (d) { return [d.id, d.name, d.host, d.port, d.user, d.auth, d.hasPassword, d.hasSudoPassword, d.status && d.status.reachable, d.status && d.status.error && d.status.error.message]; }));
+    var sig = JSON.stringify(s.devices.map(function (d) { return [d.id, d.name, d.host, d.port, d.user, d.auth, d.hasPassword, d.hasSudoPassword, d.status && d.status.reachable, d.status && d.status.error && d.status.error.message, d.off, d.status && (d.status.installs || []).map(function (i) { return [i.id, i.version, i.secondary]; })]; }));
     var box = $('#devMgr');
     if (sig === mgrSig || box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     mgrSig = sig;
     box.innerHTML = s.devices.length ? '<div class="note pnote">Your devices</div>' + s.devices.map(mgrHtml).join('') : '';
   }
   $('#devMgr').addEventListener('click', function (e) {
+    var fb = e.target.closest('.seg[data-feat] button');
+    if (fb) {
+      var fcard = fb.closest('.dcard'), fid = fcard.dataset.id, off = [];
+      $$('.seg[data-feat]', fcard).forEach(function (sg) {
+        var on = sg === fb.parentNode ? fb.dataset.v === '1' : !!$('button.on', sg) && $('button.on', sg).dataset.v === '1';
+        if (!on) off.push(sg.dataset.feat);
+      });
+      $$('button', fb.parentNode).forEach(function (b) { b.classList.toggle('on', b === fb); });
+      api('api/devices', { action: 'features', id: fid, off: off }).then(function (j) { if (!j.ok) { report(j, 'Could not save'); mgrSig = ''; } });
+      return;
+    }
     var seg = e.target.closest('.seg[data-f=auth] button');
     if (seg) { $$('button', seg.parentNode).forEach(function (b) { b.classList.toggle('on', b === seg); }); return; }
     var b = e.target.closest('button[data-act]'); if (!b) return;

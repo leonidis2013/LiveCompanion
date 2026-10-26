@@ -20,6 +20,7 @@ const Secrets = require('./lib/secrets.js');
 const Releases = require('./lib/releases.js');
 const Mail = require('./lib/mail.js');
 const { createEngine } = require('./lib/engine.js');
+const Probe = require('./lib/probe.js');
 const pkg = require('./package.json');
 
 const args = process.argv.slice(2);
@@ -130,7 +131,7 @@ function publicDevice(d) {
   const st = state.devices[d.id] || null;
   return {
     id: d.id, name: d.name, host: d.host, port: d.port || 22, user: d.user, auth: d.auth === 'password' ? 'password' : 'key',
-    hasPassword: !!d.password, hasSudoPassword: !!d.sudoPassword,
+    hasPassword: !!d.password, hasSudoPassword: !!d.sudoPassword, off: Array.isArray(d.off) ? d.off : [],
     status: st, busy: engine.isBusy(d.id), jobId: engine.busyJob(d.id), checking: engine.isChecking(d.id)
   };
 }
@@ -217,6 +218,18 @@ async function editDevice(b) {
   return res;
 }
 
+/** Turn things on or off for one device: Companion, Satellite, containers, OS updates, reboot prompts. */
+function setFeatures(b) {
+  const dev = cfg.devices.find((d) => d.id === b.id);
+  if (!dev) return { ok: false, error: 'That device is gone' };
+  if (!Array.isArray(b.off)) return { ok: false, error: 'Nothing to change' };
+  const off = Array.from(new Set(b.off.map((x) => String(x))))
+    .filter((x) => /^(companion|satellite|os|reboot|docker:[0-9a-f]{1,64})$/.test(x)).slice(0, 30);
+  const res = changeConfig((c) => { const i = c.devices.findIndex((d) => d.id === dev.id); c.devices[i] = Object.assign({}, c.devices[i], { off }); });
+  if (res.ok && state.devices[dev.id]) { Probe.applyOff(state.devices[dev.id], off); saveState(); }
+  return res;
+}
+
 function removeDevice(b) {
   const dev = cfg.devices.find((d) => d.id === b.id);
   if (!dev) return { ok: false, error: 'That device is gone' };
@@ -241,6 +254,7 @@ function devicesAction(b) {
     case 'edit': return editDevice(b);
     case 'remove': return removeDevice(b);
     case 'trust': return trustKey(b);
+    case 'features': return setFeatures(b);
     default: return { ok: false, error: 'Unknown action' };
   }
 }

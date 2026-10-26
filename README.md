@@ -8,6 +8,7 @@ One dashboard for the Bitfocus Companion installs in your building. Add your con
 - Updates one device, one item, or everything at once, always after a confirm window.
 - **Backs up the Companion / Satellite configuration to this server before each update.** If the backup fails, nothing is changed. The newest few are kept.
 - Shows **Reboot needed** after updates, with a Reboot button, and waits for the device to come back.
+- Per device **On/Off switches** (Settings > Devices > Watching) for Companion, Satellite, containers, OS updates and reboot prompts. A Satellite that is installed beside Companion but not running is hidden automatically.
 - Checks everything **daily** (default 03:30) and with **Check now**. Badges on the dashboard, plus an optional **email** when something new appears.
 
 ## Run it
@@ -68,7 +69,7 @@ There is **no login** by default. Anyone who can reach this page can run updates
 
 ## Testing status
 
-`npm test` runs 15 tests: version logic, the real probe/update/backup shell scripts against a fake device file tree, the engine's check > backup > update > verify flow and its failure path, mail against a fake SMTP server, and the web API with PIN. The UI was checked in a browser in demo mode.
+`npm test` runs 18 tests: version logic, the real probe/update/backup shell scripts against a fake device file tree, the engine's check > backup > update > verify flow and its failure path, mail against a fake SMTP server, and the web API with PIN. The UI was checked in a browser in demo mode.
 
 **Not tested against real hardware.** The real SSH connection (key and password logins, host key handling), real Companion Pi / Satellite updaters, apt, Docker image comparison and the reboot wait could not be run where this was written. Expect some first-run fixes; try it on one non-critical Pi first. Please report what you find.
 

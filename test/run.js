@@ -156,6 +156,19 @@ test('probe: a stable build with build metadata that matches the feed is up to d
   assert.strictEqual(st.installs[0].note, '');
 });
 
+test('features: turned off items are hidden, not counted and not updated', async () => {
+  const p = Probe.parse('uid=0\npkg_mgr=apt\napt_count=2\nreboot_required=1\ncompanion_present=1\ncompanion_build=v5.0.6\ncompanion_managed=1\ncompanion_service=active\nsatellite_present=1\nsatellite_build=v3.0.1\nsatellite_managed=1\nsatellite_service=active\nlc_done=1\n');
+  const feed = async (prod) => ({ ok: true, latest: { version: prod === 'companion' ? 'v5.1.1' : 'v3.6.1' } });
+  const st = await Probe.buildStatus({ host: 'h', user: 'root', off: ['satellite', 'os', 'reboot'] }, p, feed);
+  assert.ok(st.installs.find((i) => i.id === 'satellite').hidden);
+  assert.deepStrictEqual(Probe.pendingItems(st), ['Companion v5.0.6 to v5.1.1']);
+  const { createEngine } = R('lib/engine');
+  const eng = createEngine({ ssh: {}, secrets: {}, getCfg: () => ({ devices: [] }), state: {}, save() {}, dataDir: tmp('f'), releases: {} });
+  assert.deepStrictEqual(eng.planSteps(Object.assign({ reachable: true }, st), ['companion', 'satellite', 'os', 'reboot']).map((s) => s.key), ['companion']);
+  Probe.applyOff(st, []);
+  assert.strictEqual(Probe.pendingItems(st).length, 4);
+});
+
 test('probe: docker line parsing and TrueNAS refusal', async () => {
   const line = 'abc123def4567890|companion|ghcr.io/bitfocus/companion:latest|running|/srv/c|companion|4.3.4|ghcr.io/bitfocus/companion@sha256:aaa|bbb';
   const p = Probe.parse('uid=0\ndocker_ok=1\ndocker=' + line + '\ndocker=' + line.replace('/srv/c', '/mnt/.ix-apps/app_configs/x') + '\n');
