@@ -2,7 +2,7 @@
 # The container runs as uid 1000 (node): give that user write access to the dataset
 # (ACL entry for user 1000, or chown 1000:1000). Do not set another "user:" here,
 # ssh needs the uid to exist inside the image.
-# Change the host path to a dataset of yours, and the host port if 9080 is taken.
+# Change the host path to a dataset of yours, and the host ports if 9080 or 9081 are taken.
 services:
   livecompanion:
     image: ghcr.io/leonidis2013/livecompanion:latest
@@ -10,7 +10,11 @@ services:
     restart: unless-stopped
     ports:
       - "9080:8080"
+      # development mode's public port: point a reverse proxy here (never at 9080). Answers nothing until exposed mode is on
+      - "9081:8081"
     volumes:
       - /mnt/tank/apps/livecompanion:/data
     environment:
       TZ: America/Chicago
+      # optional: keeps the encryption key for passwords and tokens off the dataset
+      # LIVECOMPANION_MASTER_KEY: "a long random value"

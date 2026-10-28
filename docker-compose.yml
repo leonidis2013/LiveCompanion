@@ -9,10 +9,14 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+      # development mode's public port: only for a reverse proxy, answers nothing until exposed mode is on
+      - "8081:8081"
     volumes:
       - livecompanion-data:/data
     environment:
       TZ: America/Chicago
+      # optional: keeps the encryption key for passwords and tokens off the data volume
+      # LIVECOMPANION_MASTER_KEY: "a long random value"
 
 volumes:
   livecompanion-data:

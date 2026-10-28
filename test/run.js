@@ -364,6 +364,9 @@ test('HTTP API in demo mode: state, check, update job, settings, PIN', async () 
   } finally { child.kill(); }
 });
 
+// ---------- development mode (Claude and the central Companion) ----------
+require('./claude.js')(test);
+
 // ---------- run ----------
 (async () => {
   let fail = 0;

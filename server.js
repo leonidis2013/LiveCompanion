@@ -3,9 +3,11 @@
  * LiveCompanion
  * One dashboard for your Bitfocus Companion installs: it finds controllers and
  * Satellites over SSH, tells you when Companion or the operating system has
- * updates, and runs the updates for you. Everything is set up from the web page
- * and saved in the data folder. No packages to install: Node 18 or newer, plus
- * the OpenSSH client.
+ * updates, and runs the updates for you. It also gives Claude an MCP endpoint for
+ * the central Companion (lib/claude): read buttons, pages, triggers and variables,
+ * and, when you allow it, program and press them. Everything is set up from the
+ * web page and saved in the data folder. No packages to install: Node 22 or newer,
+ * plus the OpenSSH client.
  */
 'use strict';
 
@@ -21,6 +23,8 @@ const Releases = require('./lib/releases.js');
 const Mail = require('./lib/mail.js');
 const { createEngine } = require('./lib/engine.js');
 const Probe = require('./lib/probe.js');
+const Claude = require('./lib/claude/bridge.js');
+const Net = require('./lib/claude/netsec.js');
 const pkg = require('./package.json');
 
 const args = process.argv.slice(2);
@@ -29,6 +33,9 @@ const cfgPath = process.env.CONFIG || path.join(__dirname, 'data', 'config.json'
 const dataDir = path.dirname(path.resolve(cfgPath));
 const statePath = path.join(dataDir, 'state.json');
 const PORT = Number(process.env.PORT || 8080);
+const PUBLIC_PORT = Number(process.env.PUBLIC_PORT || 8081);
+// tests only: lets the public side run on plain http on this machine
+const INSECURE_PUBLIC = process.env.LIVECOMPANION_TEST_INSECURE_PUBLIC === '1';
 const IN_DOCKER = fs.existsSync('/.dockerenv');
 
 // ---------- config (saved from the web page) ----------
@@ -55,6 +62,7 @@ function writeJson(file, obj) {
 let cfg = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), DEMO ? {} : readJson(cfgPath, {}));
 ['schedule', 'backup', 'email'].forEach((k) => { cfg[k] = Object.assign({}, DEFAULTS[k], cfg[k] || {}); });
 if (!Array.isArray(cfg.devices)) cfg.devices = [];
+cfg.claude = Claude.normalize(cfg.claude);
 
 function changeConfig(mutator) {
   const next = JSON.parse(JSON.stringify(cfg));
@@ -70,6 +78,7 @@ function changeConfig(mutator) {
 }
 
 const state = DEMO ? {} : readJson(statePath, {});
+if (!state.devices || typeof state.devices !== 'object') state.devices = {};
 let saveTimer = null;
 function saveState() {
   if (DEMO) return;
@@ -81,6 +90,7 @@ function saveState() {
 const verified = new Set();
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const pinSet = () => !!cfg.controlPinHash;
+const pinLimit = Net.limiter({ max: 5, windowMs: 10 * 60e3, lockMs: 10 * 60e3 });
 function hashPin(pin) {
   const salt = crypto.randomBytes(16);
   return 'scrypt:' + salt.toString('hex') + ':' + crypto.scryptSync(pin, salt, 32).toString('hex');
@@ -100,8 +110,33 @@ function pinOk(given) {
   return good;
 }
 
+// ---------- secrets: device and mail passwords, Claude's tokens ----------
+const secrets = Secrets.create(path.join(dataDir, 'secret.key'), { masterKey: DEMO ? '' : process.env.LIVECOMPANION_MASTER_KEY });
+let keyMismatch = false;
+/** Every encrypted value in the settings, wherever it sits. */
+function eachSecret(obj, fn) {
+  if (!obj || typeof obj !== 'object') return;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (typeof v === 'string' && /^enc[12]:/.test(v)) obj[k] = fn(v);
+    else if (v && typeof v === 'object') eachSecret(v, fn);
+  }
+}
+if (!DEMO) {
+  // a master key from the environment: move everything over to it and delete the key file from the volume
+  if (process.env.LIVECOMPANION_MASTER_KEY && secrets.hasFileKey()) {
+    let moved = false;
+    const r = changeConfig((c) => { eachSecret(c, (v) => { if (!v.startsWith('enc1:')) return v; const m = secrets.migrate({ v }); moved = true; return m ? m.v : v; }); if (c.keyCheck && c.keyCheck.startsWith('enc1:')) c.keyCheck = secrets.makeCheck(); });
+    if (r.ok && secrets.dropFileKey() && moved) console.log('Passwords and tokens are now encrypted with the master key; secret.key was removed from the data folder.');
+  }
+  if (!cfg.keyCheck) changeConfig((c) => { c.keyCheck = secrets.makeCheck(); });
+  else if (!secrets.checkOk(cfg.keyCheck)) {
+    keyMismatch = true;
+    console.error('The encryption key does not match the one the saved passwords were encrypted with. Check LIVECOMPANION_MASTER_KEY, or enter the passwords again.');
+  }
+}
+
 // ---------- engine ----------
-const secrets = Secrets.create(path.join(dataDir, 'secret.key'));
 let ssh, releases;
 if (DEMO) {
   const demo = require('./lib/demo.js');
@@ -150,6 +185,7 @@ function snapshot() {
     },
     sshKey: DEMO ? 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoKeyOnlyForTheDemoMode livecompanion' : ssh.publicKey(),
     pinRequired: pinSet(),
+    claude: claude.snapshot(),
     update: { latest: upd.latest, available: !!upd.latest && newer(upd.latest, pkg.version), checkedAt: upd.checkedAt, failed: upd.failed, enabled: UPDATE_CHECK && !DEMO, image: IMAGE + ':' + upd.latest }
   };
 }
@@ -277,6 +313,7 @@ function changeSettings(b) {
       }
     }
     if (b.newPin !== undefined) {
+      if ((b.newPin === null || b.newPin === '') && c.claude.security.mode === 'exposed') return 'Claude is exposed, which needs a PIN. Switch Claude to local only first (Security).';
       if (b.newPin === null || b.newPin === '') delete c.controlPinHash;
       else if (String(b.newPin).length < 4) return 'Use a PIN of at least 4 characters';
       else c.controlPinHash = hashPin(String(b.newPin));
@@ -410,7 +447,12 @@ function postJson(req, res, fn, { needPin = true, limit = 16384 } = {}) {
   let raw = '', tooBig = false;
   req.on('data', (d) => { if (tooBig) return; raw += d; if (raw.length > limit) { tooBig = true; raw = ''; } });
   req.on('end', () => {
-    if (needPin && !pinOk(req.headers['x-pin'])) return setTimeout(() => json(res, 401, { ok: false, error: 'Wrong or missing PIN' }), 500);
+    if (needPin && pinSet()) {
+      const ip = Net.clientIp(req, false), left = pinLimit.locked(ip);
+      if (left) return json(res, 429, { ok: false, error: 'Too many wrong PINs. Try again in ' + Math.ceil(left / 60) + ' min.' });
+      if (!pinOk(req.headers['x-pin'])) { pinLimit.hit(ip); return setTimeout(() => json(res, 401, { ok: false, error: 'Wrong or missing PIN' }), 500); }
+      pinLimit.reset(ip);
+    }
     if (tooBig) return json(res, 413, { ok: false, error: 'That is too large' });
     let body;
     try { body = JSON.parse(raw || '{}'); } catch (e) { return json(res, 400, { ok: false, error: 'Bad JSON' }); }
@@ -432,18 +474,34 @@ function broadcastSoon() {
   }, 150);
 }
 
+/** A download or other GET that needs the PIN (counts toward the lockout). */
+function pinOkGet(given, req) {
+  if (!pinSet()) return true;
+  const ip = Net.clientIp(req, false);
+  if (pinLimit.locked(ip)) return false;
+  if (pinOk(given)) { pinLimit.reset(ip); return true; }
+  pinLimit.hit(ip);
+  return false;
+}
+
+let pageHashes = null;
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const url = u.pathname;
+  // while Claude is exposed, this port only answers your own network and never a reverse proxy
+  const refused = claude.adminRefusal(req);
+  if (refused) return claude.refuse(req, res, url, refused);
 
   if (req.method === 'GET' && FILES[url]) {
     const [file, type] = FILES[url];
-    return fs.readFile(path.join(PUBLIC, file), (err, data) => {
+    return fs.readFile(path.join(PUBLIC, file), 'utf8', (err, data) => {
       if (err) { res.writeHead(500); return res.end('Missing ' + file); }
-      res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+      if (!pageHashes || pageHashes.len !== data.length) pageHashes = Object.assign(Net.inlineHashes(data), { len: data.length });
+      res.writeHead(200, Net.securityHeaders({ 'content-type': type, 'cache-control': 'no-store', 'content-security-policy': Net.pageCsp(pageHashes) }));
       res.end(data);
     });
   }
+  if (claude.route(req, res, u, postJson, json, pinOkGet)) return;
   if (req.method === 'GET' && url === '/api/state') return json(res, 200, snapshot());
 
   if (req.method === 'GET' && url === '/events') {
@@ -465,7 +523,7 @@ const server = http.createServer((req, res) => {
     return json(res, 200, { backups: engine.listBackups(id) });
   }
   if (req.method === 'GET' && url === '/api/backup') {
-    if (!pinOk(u.searchParams.get('pin') || req.headers['x-pin'])) { res.writeHead(401); return res.end('Wrong or missing PIN'); }
+    if (!pinOkGet(u.searchParams.get('pin') || req.headers['x-pin'], req)) { res.writeHead(401); return res.end('Wrong or missing PIN'); }
     const p = engine.backupPath(u.searchParams.get('id') || '', u.searchParams.get('file') || '');
     if (!p) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="' + path.basename(p) + '"' });
@@ -503,6 +561,15 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('Not found');
 });
 
+// ---------- Claude ----------
+const claude = Claude.create({
+  getCfg: () => cfg, changeConfig, state, saveState, broadcast: () => broadcastSoon(), writeJson,
+  secrets, dataDir, demo: DEMO, version: pkg.version, keyMismatch,
+  publicPort: PUBLIC_PORT, adminPort: PORT, insecurePublic: INSECURE_PUBLIC,
+  demoCompanion: DEMO ? require('./lib/claude/fake-companion.js').client() : null,
+  devices: () => cfg.devices.map((d) => ({ id: d.id, name: d.name, host: d.host, status: state.devices[d.id] || null }))
+});
+
 setInterval(broadcastSoon, 1500).unref();
 ['SIGTERM', 'SIGINT'].forEach((sig) => process.on(sig, () => process.exit(0)));
 
@@ -512,6 +579,7 @@ async function start() {
     if (!pub) console.error('Could not create the SSH key. Is ssh-keygen installed? Password logins still work.');
     if (UPDATE_CHECK) { setTimeout(checkSelfUpdate, 5000).unref(); setInterval(checkSelfUpdate, 6 * 3600 * 1000).unref(); }
   }
+  claude.start();
   setInterval(tick, 30000).unref();
   setTimeout(() => {
     const stale = !state.lastCheckAllAt || Date.now() - state.lastCheckAllAt > 6 * 3600 * 1000;
@@ -519,10 +587,11 @@ async function start() {
   }, DEMO ? 300 : 15000).unref();
   server.listen(PORT, '0.0.0.0', () => {
     console.log('LiveCompanion v' + pkg.version + ' on http://localhost:' + PORT + (DEMO ? ' (demo: simulated devices)' : ''));
-    if (!pinSet()) console.log('Note: anyone on this network can use this dashboard, and it can run updates as root on your devices. Set a control PIN in Settings to require one.');
+    console.log('Claude connects to http://<this machine>:' + PORT + '/mcp');
+    if (!pinSet()) console.log('Note: anyone on this network can use this dashboard, and it can run updates as root on your devices and see Claude\'s access token. Set a control PIN in Settings to require one.');
   });
 }
 
 if (require.main === module) start();
 
-module.exports = { engine, cfgGet: () => cfg, snapshot };
+module.exports = { engine, cfgGet: () => cfg, snapshot, claude };

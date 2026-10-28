@@ -174,7 +174,7 @@
   .offbar { display:none; position:fixed; left:50%; top:calc(12px + env(safe-area-inset-top)); transform:translateX(-50%); z-index:60; background:var(--bad); color:#fff;
             padding:10px 16px; border-radius:999px; font-weight:600; font-size:14px; box-shadow:0 6px 24px var(--shadow); align-items:center; gap:10px; white-space:nowrap; }
   body.offline .offbar { display:flex; }
-  body.offline #tab-main, body.offline #tab-setup { filter:grayscale(1); opacity:.4; pointer-events:none; user-select:none; }
+  body.offline #tab-main, body.offline #tab-setup, body.offline #tab-claude { filter:grayscale(1); opacity:.4; pointer-events:none; user-select:none; }
   .spin { width:14px; height:14px; border:2px solid #fff6; border-top-color:#fff; border-radius:50%; animation:spin .9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
@@ -182,7 +182,7 @@
     header { row-gap:6px; padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top)); gap:8px; }
     header h1 { font-size:14px; } header h1 small { display:none; }
     #status { order:3; flex:1 0 100%; }
-    .gear { order:2; } #fsBtn { margin-left:auto; order:1; } #chkAll { order:1; } #updAll { order:1; }
+    .gear { order:2; } .hsec { order:2; padding:0 9px; } .hsec .lbl { display:none; } #fsBtn { margin-left:auto; order:1; } #chkAll { order:1; } #updAll { order:1; }
     h1 { order:0; }
     #app { padding-left:10px; padding-right:10px; }
     .devs { grid-template-columns:1fr; }
@@ -202,6 +202,145 @@
     .set.feat { flex-wrap:nowrap; } .set.feat .sl { flex:1 1 0; } .set.feat .sc { flex:0 0 auto; }
     body.in-setup #status { display:none; }
   }
+  /* ===== Claude: security tab, approvals, keep or revert, setup guide (same as HomeClaude) ===== */
+  /* Security has its own tab, opened from the top bar */
+  .hsec { display:flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:8px; background:transparent; color:var(--dim); position:relative; }
+  .hsec svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .hsec:hover { color:var(--fg); background:var(--card2); }
+  .hsec.exp:not(.on) { color:var(--warn); }
+  .hsec.on, .hsec.on:hover { background:var(--acc); color:var(--onacc); }
+  .hsec .badge, #csub .badge { position:absolute; top:-5px; right:-5px; min-width:18px; height:18px; border-radius:9px; background:var(--warn); color:#111; font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0 4px; }
+  [data-cpane=security] { max-width:820px; }
+  .sechead { display:flex; align-items:center; gap:10px; margin:0 0 6px; }
+  .sechead h2 { margin:0; font-size:13px; }
+  :root { --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .rv .warn2 { color:var(--warn); font-weight:600; }
+  .dev.wide { grid-column:1/-1; }
+  .chip.w { background:color-mix(in srgb, var(--warn) 16%, transparent); color:var(--warn); }
+  .chip.b { background:color-mix(in srgb, var(--bad) 16%, transparent); color:var(--bad); }
+  .chip.o { background:color-mix(in srgb, var(--ok) 16%, transparent); color:var(--ok); }
+  .alist { display:flex; flex-direction:column; border-top:1px solid var(--line); }
+  .arow { display:grid; grid-template-columns:8px 1fr auto; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); min-width:0; }
+  .arow:last-child { border-bottom:0; }
+  .an { min-width:0; }
+  .an b { font:600 12.5px/1.3 var(--mono); }
+  .an span { display:block; font:11.5px/1.35 var(--mono); color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .an .aerr { color:var(--bad); white-space:normal; overflow-wrap:anywhere; font-family:inherit; }
+  .aw { font-size:11px; color:var(--dim); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .aw .chip { margin-left:4px; vertical-align:1px; }
+  .cmd { display:block; width:100%; margin:0; font:12px/1.45 var(--mono); background:var(--inset); color:var(--fg); border-radius:8px; padding:9px 10px; white-space:pre-wrap; overflow-wrap:anywhere; user-select:all; }
+  .cmd.dim { color:var(--dim); user-select:none; }
+  .copyrow { display:flex; gap:8px; align-items:flex-start; margin-top:6px; }
+  .copyrow .cmd { flex:1; min-width:0; }
+  .tl { display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--line); font-size:13px; }
+  .tl b { font:600 12.5px var(--mono); min-width:0; overflow-wrap:anywhere; }
+  .tl span:not(.chip) { flex:1; color:var(--dim); font-size:12px; min-width:0; }
+  .tl .chip { flex:none; }
+  .tl.off { opacity:.45; }
+  ol.steps { margin:6px 0 2px; padding-left:20px; color:var(--dim); font-size:13px; }
+  ol.steps li { margin:4px 0; } ol.steps b { color:var(--fg); font-weight:600; }
+  .sub2 { font-weight:700; font-size:13px; margin:14px 0 2px; }
+  .sub2:first-of-type { margin-top:4px; }
+  /* ===== exposed mode: approvals, connections, events ===== */
+  #approvals:empty { display:none; }
+  #approvals { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+  .appr { background:var(--card); border:1px solid var(--warn); border-left:4px solid var(--warn); border-radius:12px; padding:14px; box-shadow:0 6px 24px var(--shadow); max-width:900px; }
+  .appr .ah { display:flex; gap:8px; align-items:center; font-weight:700; }
+  .appr .ah .tm { margin-left:auto; font-weight:400; font-size:12px; color:var(--dim); }
+  .appr .ab { display:flex; gap:16px; align-items:center; margin:10px 0; flex-wrap:wrap; }
+  .acode { font:700 28px/1 var(--mono); letter-spacing:.12em; background:var(--card2); border:1px solid var(--line); border-radius:9px; padding:10px 14px; }
+  .appr .ai2 { flex:1; min-width:200px; font-size:13px; color:var(--dim); } .appr .ai2 b { color:var(--fg); display:block; font-size:14px; }
+  .appr .af { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .appr .af .sp { flex:1; }
+  .conn { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .conn:first-child { border-top:0; } .conn .ci { flex:1; min-width:200px; } .conn .ci b { display:block; } .conn .ci span { font-size:12px; color:var(--dim); }
+  .chk { display:flex; gap:9px; align-items:flex-start; padding:6px 0; font-size:13px; }
+  .chk .ck { width:18px; height:18px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; background:var(--card2); color:var(--dim); margin-top:1px; }
+  .chk.ok .ck { background:var(--ok); color:var(--onacc); } .chk.bad .ck { background:var(--bad); color:#fff; }
+  .chk span small { display:block; color:var(--dim); font-size:12px; }
+  .ev .dot { margin-top:2px; }
+  #reviews:empty { display:none; }
+  #reviews { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+  .rev { background:var(--card); border:1px solid color-mix(in srgb, var(--acc) 60%, var(--line)); border-left:4px solid var(--acc); border-radius:12px; padding:14px; max-width:900px; }
+  .rev .ah { display:flex; gap:8px; align-items:center; font-weight:700; flex-wrap:wrap; }
+  .rev .ah .tm { margin-left:auto; font-weight:400; font-size:12px; color:var(--dim); }
+  .rev .ah .tm b { font-variant-numeric:tabular-nums; color:var(--fg); }
+  .rev .sub { font-size:13px; color:var(--dim); margin:4px 0 10px; }
+  .rev .af { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .rev .af .sp { flex:1; }
+  .chip.acc { background:color-mix(in srgb, var(--acc) 18%, transparent); color:var(--acc); }
+  .diff { margin:10px 0; background:var(--inset); border-radius:8px; padding:8px 0; font:12px/1.5 var(--mono); max-height:360px; overflow:auto; }
+  .diff div { padding:0 10px 0 26px; white-space:pre-wrap; overflow-wrap:anywhere; position:relative; }
+  .diff div::before { position:absolute; left:10px; color:var(--faint); }
+  .diff .a { background:color-mix(in srgb, var(--ok) 14%, transparent); } .diff .a::before { content:"+"; color:var(--ok); }
+  .diff .d { background:color-mix(in srgb, var(--bad) 14%, transparent); text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--bad) 50%, transparent); } .diff .d::before { content:"−"; color:var(--bad); }
+  .diff .gap { color:var(--faint); font-style:italic; }
+  .rhist { display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--line); font-size:13px; }
+  .rhist:first-child { border-top:0; } .rhist span { flex:1; min-width:0; } .rhist small { color:var(--dim); }
+  .urgent { color:var(--bad); }
+  .appr .tm b { font-variant-numeric:tabular-nums; color:var(--fg); }
+  .appr .af select, .cspan select { max-width:150px; }
+  .acc-left { display:block; margin-top:2px; } .acc-left b { font-variant-numeric:tabular-nums; }
+  .qrwrap { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; margin:6px 0 4px; }
+  .qrwrap .qr { background:#fff; padding:6px; border-radius:10px; line-height:0; flex:none; }
+  .qrwrap .qr svg { width:220px; height:220px; }
+  .qrkey { font:600 15px/1.5 var(--mono); letter-spacing:.06em; background:var(--card2); padding:8px 10px; border-radius:8px; word-break:break-all; user-select:all; }
+  #totpCode { font:700 22px var(--mono); letter-spacing:.25em; width:150px; text-align:center; }
+  /* ===== setup guide: steps with their status down the left, one step at a time on the right ===== */
+  .side.wside { width:236px; flex:0 0 236px; gap:2px; }
+  .wzs { display:flex; align-items:flex-start; gap:10px; text-align:left; padding:8px 10px; position:relative; }
+  .wzs .num { width:24px; height:24px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800;
+              border:1.5px solid var(--line); background:var(--card2); color:var(--dim); }
+  .wzs .num svg { width:13px; height:13px; stroke:currentColor; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .wzs .wt { display:flex; flex-direction:column; min-width:0; padding-top:2px; }
+  .wzs .wt b { font-weight:600; color:var(--fg); font-size:13.5px; }
+  .wzs .wt small { font-size:11.5px; color:var(--dim); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wzs.done .num { background:var(--ok); border-color:var(--ok); color:var(--onacc); }
+  .wzs.bad .num { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .wzs.bad .wt small { color:var(--bad); }
+  .wzs.skip .num { border-style:dashed; }
+  .wzs.on .num { border-color:var(--acc); color:var(--acc); }
+  .wzs.on.done .num { color:var(--onacc); }
+  .wzs:not(:last-child)::after { content:""; position:absolute; left:21px; top:34px; bottom:-8px; width:1.5px; background:var(--line); }
+  .wzs.done:not(:last-child)::after { background:color-mix(in srgb, var(--ok) 55%, var(--line)); }
+  .wzprog { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-weight:700; padding:2px 10px 10px; }
+  .card.wz { max-width:760px; padding:20px 22px; }
+  .wzk { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--acc); font-weight:700; }
+  .wz h3 { font-size:20px; margin:4px 0 8px; letter-spacing:-.01em; }
+  .wz p { margin:0 0 10px; color:var(--dim); font-size:14px; line-height:1.5; }
+  .wz p b { color:var(--fg); }
+  .wzbody { min-height:180px; }
+  .wzf { display:flex; gap:8px; align-items:center; margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+  .wzf .sp { flex:1; }
+  .wzf button { padding:8px 16px; }
+  .wzf .on { padding:8px 20px; }
+  .picks { display:grid; gap:8px; margin:6px 0 12px; }
+  .pick { display:flex; gap:12px; align-items:flex-start; text-align:left; border:1px solid var(--line); background:var(--card2); border-radius:10px; padding:12px 14px; font-weight:400; }
+  .pick:hover { background:color-mix(in srgb, var(--card2) 80%, var(--fg) 6%); }
+  button.pick.on, button.pick.on:hover { border-color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, var(--card2)); color:var(--fg); box-shadow:inset 0 0 0 1px var(--acc); }
+  .pick .rb { width:18px; height:18px; border-radius:50%; border:2px solid var(--faint); flex:none; margin-top:1px; }
+  .pick.on .rb { border-color:var(--acc); background:radial-gradient(var(--acc) 0 4px, transparent 5px); }
+  .pick b { display:block; font-weight:700; font-size:14px; }
+  .pick span { display:block; color:var(--dim); font-size:12.5px; margin-top:2px; line-height:1.4; }
+  .pick .tag2 { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ok); margin-left:6px; }
+  .waitbox { display:flex; align-items:center; gap:10px; border:1px dashed color-mix(in srgb, var(--acc) 55%, transparent); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--dim); margin-top:12px; }
+  .waitbox .spin { border-color:color-mix(in srgb, var(--acc) 30%, transparent); border-top-color:var(--acc); flex:none; }
+  .wz .okbox, .wz .errbox { margin-top:10px; font-size:13px; padding:9px 12px; }
+  .wz .set { padding:9px 0; }
+  .sumrow { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); font-size:13.5px; }
+  .sumrow.wzs::after { display:none; }
+  .sumrow:first-child { border-top:0; } .sumrow span { flex:1; } .sumrow small { color:var(--dim); }
+  .rv code, .note code, ol.steps code { font:12px var(--mono); background:var(--card2); padding:1px 5px; border-radius:5px; color:var(--fg); }
+  @media (max-width:720px) {
+    .side.wside { width:100%; flex:none; }
+    .wzs { padding:6px 12px 6px 6px; align-items:center; }
+    .wzs .wt small { display:none; }
+    .wzs::after { display:none; }
+    .wzprog { display:none; }
+    .card.wz { padding:16px; }
+    .wzf { position:sticky; bottom:0; background:var(--card); padding-bottom:calc(10px + env(safe-area-inset-bottom)); }
+  }
+  #csub button { position:relative; }
+  #csub .badge { position:static; margin-left:auto; min-width:18px; height:18px; border-radius:9px; background:var(--warn); color:#111; font-size:10.5px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0 5px; }
+  #tab-claude .pane > div > .devs { margin-bottom:14px; grid-template-columns:1fr; max-width:900px; }
 </style>
 </head>
 <body>
@@ -212,6 +351,7 @@
   <button id="updAll" class="on hide" title="Install all updates">Update all</button>
   <button id="chkAll" class="gear" title="Check all devices now" aria-label="Check all devices now"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>
   <button id="fsBtn" class="gear" title="Full screen" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <button id="secBtn" class="hsec" title="Development mode" aria-label="Development mode"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Development mode</span><b class="badge hide" id="secBadge"></b></button>
   <button id="gear" class="gear" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Done</span></button>
 </header>
 <div class="offbar"><span class="spin"></span>Lost connection to LiveCompanion. Retrying…</div>
@@ -221,6 +361,150 @@
   <div id="alerts"></div>
   <div id="devs" class="devs"></div>
   <div id="empty" class="empty hide"><div id="emptyMsg">Connecting…</div><button id="emptyBtn" class="on hide" style="margin-top:14px">Add a device</button></div>
+</section>
+
+<section id="tab-wizard" class="hide">
+ <div class="setup">
+  <div class="side wside" id="wzSide"></div>
+  <div class="pane"><div class="card wz" id="wzPane"></div></div>
+ </div>
+</section>
+
+<section id="tab-claude" class="hide">
+ <div class="setup">
+  <div class="side" id="csub">
+    <button data-csub="overview" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Overview</span><b class="badge hide" id="cOvBadge"></b></button>
+    <button data-csub="connect"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Connect</span></button>
+    <button data-csub="perm"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Permissions</span></button>
+    <button data-csub="security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Security</span><b class="badge hide" id="cSecBadge"></b></button>
+    <button data-csub="backups"><svg viewBox="0 0 24 24"><path d="M21 8v12H3V8M1 3h22v5H1zM10 12h4"/></svg><span>Backups</span></button>
+    <button data-csub="activity"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Activity</span></button>
+  </div>
+  <div class="pane">
+
+    <div data-cpane="overview">
+      <div id="approvals"></div>
+      <div id="reviews"></div>
+      <div id="calerts"></div>
+      <div class="devs">
+        <article class="dev none" id="ccCard">
+      <div class="dh"><span class="dot" id="ccDot"></span><div class="dn">Development mode</div><div class="seg" id="ccSeg"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+      <div class="dsub" id="ccSub"></div>
+      <div class="rows" id="ccRows"></div>
+      <div class="df"><span class="when" id="ccWhen"></span><button id="ccPerm">Permissions</button><button id="ccConn" class="on">Connect Claude</button></div>
+        </article>
+      </div>
+      <div class="card" id="cRecent"><h2>Recent requests</h2><div class="alist" id="cactList"></div></div>
+    </div>
+
+    <div data-cpane="connect" class="hide">
+      <div class="note pnote">Claude works on <b>one</b> Companion, the central one: it reads and (when you allow it) programs and presses its buttons, pages, triggers and variables. Claude reaches LiveCompanion at <code>/mcp</code> with an access token; treat the token like a password.</div>
+      <div class="card">
+        <h2>Companion for Claude</h2>
+        <div class="set first"><div class="sl"><b>Companion's web address</b><span>The address you open Companion's admin page at, with its port (usually 8000)</span></div><div class="sc"><select id="ccPick" class="hide" aria-label="Pick a device"></select><input id="ccUrl" class="txt wide" placeholder="http://192.168.1.20:8000" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Companion address"></div></div>
+        <div id="ccErr" class="formerr hide"></div>
+        <div class="set"><div class="sl"><b>Status</b><span id="ccStat"></span></div><div class="sc"><button id="ccTest">Test</button><button id="ccSave" class="on">Save</button></div></div>
+      </div>
+      <div class="card">
+        <h2>Access token</h2>
+        <div class="set first"><div class="sl"><b>Token</b><span id="tokNote">Hidden. Show it to copy the connection details below</span></div><div class="sc"><button id="tokShow">Show</button><button id="tokNew" class="danger">New token</button></div></div>
+      </div>
+      <div class="card">
+        <h2>Claude Code on a computer</h2>
+        <div class="note">On a Mac or PC on this network, run this once in Terminal. Claude Code then has the Companion tools in every project.</div>
+        <div class="copyrow"><pre class="cmd dim" id="cmdCode">Show the token first</pre><button data-copy="cmdCode">Copy</button></div>
+        <div class="note" style="margin-top:8px">Check it with <code>claude mcp list</code>. To remove it: <code>claude mcp remove livecompanion</code>.</div>
+      </div>
+      <div class="card">
+        <h2>claude.ai, Claude Desktop and the phone app</h2>
+        <div id="webConn"></div>
+      </div>
+      <div class="card">
+        <h2>Setup guide</h2>
+        <div class="set first"><div class="sl"><b>Walk through it step by step</b><span>Connect Companion, choose what Claude may do, protect this page and connect Claude</span></div><div class="sc"><button id="wzAgain">Open the guide</button></div></div>
+      </div>
+    </div>
+
+    <div data-cpane="perm" class="hide">
+      <div class="note pnote">Everything Claude may do in Companion, in one place: one set of levels, given to Claude on your network and to each connection from outside. These rules are checked in LiveCompanion, so they hold whatever Claude asks for. How Claude gets in (sign-in, access time, revoking) is in the Security tab.</div>
+      <div class="card">
+        <h2>Claude access</h2>
+        <div class="set first"><div class="sl"><b>Allow Claude to connect</b><span>Off refuses every request, without changing the token. Good during a service</span></div><div class="sc"><div class="seg" id="pEnabled"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+      </div>
+      <div class="card">
+        <h2>Levels</h2>
+        <div id="lvlTable"></div>
+      </div>
+      <div class="card">
+        <h2>Who may do what</h2>
+        <div id="whoBox"></div>
+      </div>
+      <div class="card">
+        <h2>Review Claude's changes</h2>
+        <div class="set first"><div class="sl"><b>Ask me to keep or revert</b><span>Each change to a button, page, trigger or custom variable goes live at once, is backed up, and waits on the dashboard for Keep or Revert. Revert puts back the version from before Claude's first change</span></div><div class="sc"><div class="seg" id="rvOn"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+        <div class="set"><div class="sl"><b>If I don't answer within</b><span>No answer, and the change is decided for you</span></div><div class="sc"><select id="rvTime" aria-label="Time to answer"><option value="0">No limit (wait for me)</option><option value="15">15 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">24 hours</option></select><div class="seg" id="rvWhat"><button data-v="revert">Revert it</button><button data-v="keep">Keep it</button></div></div></div>
+      </div>
+      <div class="card">
+        <h2>Protected pages</h2>
+        <div class="set first"><div class="sl"><b>Pages Claude may not touch</b><span>Claude can read these, but cannot change, delete or press anything on them, at any level. For example the pages your volunteers use during a service. Page numbers, separated by commas</span></div><div class="sc"><input id="pProt" class="txt wide" spellcheck="false" autocomplete="off" placeholder="1, 2" aria-label="Protected pages"><button id="pProtSave" class="on">Save</button></div></div>
+      </div>
+      <div class="card">
+        <h2>Tools Claude sees</h2>
+        <div id="toolList"></div>
+      </div>
+    </div>
+
+
+    <div data-cpane="security" class="hide">
+
+      <div class="note pnote">Where Claude can reach LiveCompanion. <b>Local only:</b> Claude Code on your network, with the access token. <b>Exposed:</b> claude.ai and the Claude phone app reach it through your reverse proxy. Claude signs in, you approve each connection here, and this dashboard stays private.</div>
+      <div class="card">
+        <h2>Mode</h2>
+        <div class="set first"><div class="sl"><b>Where Claude can reach LiveCompanion</b><span id="secModeNote"></span></div><div class="sc"><div class="seg" id="secMode"><button data-v="local">Local only</button><button data-v="exposed">Exposed</button></div></div></div>
+        <div id="secReq"></div>
+      </div>
+      <div class="card">
+        <h2>Public address</h2>
+        <div class="set first"><div class="sl"><b>Address</b><span>The https address your reverse proxy answers on, with nothing after the host name</span></div><div class="sc"><input id="secPub" class="txt wide" placeholder="https://companion.example.com" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Public address"><button id="secPubSave" class="on">Save</button></div></div>
+        <div class="set"><div class="sl"><b>Check the proxy</b><span>LiveCompanion calls its own public address to confirm it reaches the public port, and that this dashboard and its settings cannot be reached from outside</span></div><div class="sc"><button id="secTest">Test</button></div></div>
+        <div id="secTestOut"></div>
+      </div>
+      <div class="card"><h2>Reverse proxy</h2><div id="secProxy"></div></div>
+      <div class="card"><h2>Connections from outside</h2>
+        <div class="set first"><div class="sl"><b>Access time for new connections</b><span>Preselected when you approve (you can change it each time), and used for approvals with an authenticator code. When it runs out, Claude has to sign in and be approved again</span></div><div class="sc"><select id="secSpan" aria-label="Default access time"></select></div></div>
+        <div id="secConns"></div>
+        <div class="set"><div class="sl"><span>Revoking cuts a connection off at once. Claude has to sign in again, and you approve it again.</span></div><div class="sc"><button id="secRevokeAll" class="danger">Revoke all</button></div></div>
+      </div>
+      <div class="card">
+        <h2>Approve with an authenticator code</h2>
+        <div class="note" style="margin-bottom:6px">Lets you approve a new Claude connection from anywhere: Claude's sign-in page also accepts the 6-digit code from your authenticator app (Google or Microsoft Authenticator, 1Password, Authy, the iPhone Passwords app).</div>
+        <div id="totpBox"></div>
+      </div>
+      <div class="card">
+        <h2>Access token from outside</h2>
+        <div class="set first"><div class="sl"><b>Accept the access token over the public address</b><span>Off (recommended): only signed-in, approved connections work from outside. On: apps that send the token as a header work too, at the level set under Permissions</span></div><div class="sc"><div class="seg" id="secTokRemote"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+      </div>
+      <div class="card"><h2>Encryption</h2><div id="secKey"></div></div>
+      <div class="card"><h2>Security events</h2><div class="alist" id="secEvents"></div>
+        <div class="set"><div class="sl"></div><div class="sc"><button id="secClear" class="danger">Clear</button></div></div>
+      </div>
+ 
+    </div>
+
+    <div data-cpane="backups" class="hide">
+      <div class="note pnote">Before Claude changes or deletes a button, page, trigger or custom variable in Companion, LiveCompanion saves the old version here. Restore puts it back in Companion (and saves the current one first). These are separate from the backups made before updates.</div>
+      <div class="card"><h2>Claude's changes</h2><div id="cbkList"><div class="note">Loading…</div></div></div>
+    </div>
+
+    <div data-cpane="activity" class="hide">
+      <div class="card"><h2>Reviewed changes</h2><div id="rvHist"></div></div>
+      <div class="card"><h2>Everything Claude asked for</h2><div class="note" id="cactNote" style="margin-bottom:6px"></div><div class="alist" id="cactFull"></div>
+        <div class="set"><div class="sl"></div><div class="sc"><button id="cactClear" class="danger">Clear</button></div></div>
+      </div>
+    </div>
+
+  </div>
+ </div>
 </section>
 
 <section id="tab-setup" class="hide">
@@ -619,13 +903,14 @@
     if (s.update && s.update.available) pills.push('<span class="st warn">LiveCompanion ' + esc(s.update.latest) + ' is available</span>');
     var sig = pills.join('');
     if ($('#status').dataset.sig !== sig) { $('#status').dataset.sig = sig; $('#status').innerHTML = sig; }
-    $('#updAll').classList.toggle('hide', !withUpd || inSetup);
+    $('#updAll').classList.toggle('hide', !withUpd || inSetup || inWizard || inClaude);
     $('#chkAll').classList.toggle('spin', !!s.checkingAll);
 
     $('#empty').classList.toggle('hide', n > 0);
     if (!n) { $('#emptyMsg').textContent = 'No devices yet. Add your Companion controllers and Satellites to see their updates here.'; $('#emptyBtn').classList.remove('hide'); }
     renderDevices(s);
-    if (inSetup) updateSettings(s);
+    renderSecButton(s);
+    if (inWizard) renderWizard(s); else if (inClaude) renderClaude(s); else if (inSetup) updateSettings(s);
   }
 
   // ---------- settings: devices ----------
@@ -858,7 +1143,7 @@
     else if (subPane === 'email') { if (!emailLoaded) loadEmail(s); }
     else if (subPane === 'backups') updateBackups(s);
     else if (subPane === 'activity') updateActivity(s);
-    else {
+    else if (subPane === 'settings') {
       if (!settingsLoaded) loadSettings(s);
       $('#pinNote').textContent = s.pinRequired ? 'Required before anything is changed. Enter a new one to change it' : 'Not set: anyone on this network can run updates. At least 4 characters';
       $('#pinNote').style.color = s.pinRequired ? 'var(--ok)' : '';
@@ -875,7 +1160,7 @@
       $('#updHow').classList.toggle('hide', !showHow);
       if (showHow) $('#updImg').value = u.image;
       $('#modeVal').textContent = s.demo ? 'Demo' : 'Live';
-      $('#modeNote').textContent = s.demo ? 'Simulated devices. Start LiveCompanion without --demo and add yours under Devices' : 'Talking to your devices over SSH';
+      $('#modeNote').textContent = s.demo ? 'Simulated devices and Companion, Claude\'s access token is "demo". Start LiveCompanion without --demo and add yours under Devices' : 'Talking to your devices over SSH';
     }
   }
   function saveSettings(patch) { return api('api/settings', patch).then(function (j) { report(j, 'Could not save'); return j; }); }
@@ -904,6 +1189,823 @@
     api('api/update-check', {}).then(function (j) { b.disabled = false; b.textContent = 'Check now'; if (!j.ok && !j.cancelled) toast(j.error || 'Could not check'); });
   };
 
+  // =====================================================================
+  // ---------- Claude: the same pages and wording as HomeClaude ----------
+  // =====================================================================
+  var inWizard = false, inClaude = false, token = '', claudeSub = 'overview';
+  try { claudeSub = localStorage.getItem('lc-csub') || 'overview'; } catch (e) {}
+  if (['overview', 'connect', 'perm', 'security', 'backups', 'activity'].indexOf(claudeSub) < 0) claudeSub = 'overview';
+  var ccLoaded = false, pubLoaded = false, protLoaded = false, cbkSig = null, apSig = '', apScope = {}, apSpan = {}, connSig = '';
+  function C() { return (snap && snap.claude) || {}; }
+  function capi(p, body) { return api('api/claude/' + p, body); }
+  function when(t) { var d = new Date(t); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+  function paintSeg(el, v) { if (el) $$('button', el).forEach(function (b) { b.classList.toggle('on', b.dataset.v === v); }); }
+  function confirmBox(title, text, goLabel, danger) {
+    return new Promise(function (resolve) {
+      var m = openModal('<div class="mh">' + esc(title) + '</div><div class="mb">' + text + '</div><div class="mf"><button id="mNo">Cancel</button><button id="mYes" class="on' + (danger ? ' danger' : '') + '">' + esc(goLabel) + '</button></div>');
+      $('#mNo', m).onclick = function () { closeModal(); resolve(false); };
+      $('#mYes', m).onclick = function () { closeModal(); resolve(true); };
+    });
+  }
+
+  // ---------- connection details ----------
+  function mcpBase() { return location.protocol + '//' + location.host; }
+  function codeCmd(t) { return 'claude mcp add --transport http livecompanion ' + mcpBase() + '/mcp --header "Authorization: Bearer ' + t + '"'; }
+  function connUrl() { return C().publicUrl ? C().publicUrl + '/mcp' : ''; }
+  function webSteps(c, pre) {
+    var sec = c.security || {}, u = connUrl();
+    if (sec.mode !== 'exposed' || !u) {
+      return '<p class="note" style="margin:0 0 8px">claude.ai, Claude Desktop and the phone app connect from Anthropic\'s servers, not from your device, so LiveCompanion has to be reachable from the internet for them. That is <b>exposed mode</b>: a reverse proxy (such as a Cloudflare Tunnel) in front of LiveCompanion\'s public port, with Claude signing in and you approving each connection here.</p>' +
+        '<button class="on" data-gosec>Set up exposed mode</button>';
+    }
+    return '<ol class="steps"><li>On claude.ai, open <b>Customize &gt; Connectors</b>, choose <b>+ Add</b>, then <b>Add custom connector</b>. Name it <b>LiveCompanion</b>.</li><li>Paste this URL:</li></ol>' +
+      '<div class="copyrow"><pre class="cmd" id="' + pre + 'Url">' + esc(u) + '</pre><button data-copy="' + pre + 'Url">Copy</button></div>' +
+      '<ol class="steps" start="3"><li>Leave Authentication on its default sign-in, and choose <b>Add</b>, then <b>Connect</b>.</li>' +
+      '<li>A LiveCompanion page opens with a code like <b>K7Q-2XM</b>. An approval with the same code appears at the top of this page. Check the codes match, choose what Claude may do, and approve.' +
+        (sec.totp && sec.totp.enabled && !sec.totp.off ? ' Away from here, type your authenticator code on that page instead.' : '') + '</li>' +
+      '<li>The connector then works in Claude Desktop and the phone app too.</li></ol>' +
+      (sec.allowTokenRemote ? '<div class="note" style="margin-top:8px">Access token from outside is on, so an app can also use <b>No sign in</b> with the request header <code>Authorization: Bearer &lt;token&gt;</code>.</div>' : '');
+  }
+  document.addEventListener('click', function (e) { if (e.target.closest('[data-gosec]')) { closeModal(); openClaude('security'); } });
+  function fillConnect(root) {
+    var a = $('#cmdCode', root);
+    if (a) { a.textContent = token ? codeCmd(token) : 'Show the token first'; a.classList.toggle('dim', !token); }
+    var n = $('#tokNote');
+    if (n) n.textContent = token ? 'Shown below. It stays on this page until you reload' : 'Hidden. Show it to copy the connection details below';
+  }
+  function getToken() {
+    if (token) return Promise.resolve(token);
+    return capi('token', {}).then(function (j) { if (j.ok) { token = j.token; fillConnect(document); } else report(j, 'Could not get the token'); return token; });
+  }
+  function selectText(el) { var r = document.createRange(); r.selectNodeContents(el); var sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); }
+  function copyFrom(id, root) {
+    var el = $('#' + id, root || document);
+    if (!el || el.classList.contains('dim')) { toast('Nothing to copy yet'); return; }
+    var text = el.textContent, done = function () { toast('Copied', true); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, function () { selectText(el); });
+    else { selectText(el); try { document.execCommand('copy'); done(); } catch (e) { toast('Select the text and copy it'); } }
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-copy]'); if (b) copyFrom(b.dataset.copy, b.closest('.modal') || document); });
+  var TRY = '"Use LiveCompanion to give me an overview of my Companion."';
+  function openConnect() {
+    getToken().then(function (t) {
+      if (!t) return;
+      var m = openModal('<div class="mh">Connect Claude</div><div class="mb">' +
+        '<div class="sub2">Claude Code on a computer on this network</div><div class="note">Run once in Terminal:</div>' +
+        '<div class="copyrow"><pre class="cmd" id="cmdCode">' + esc(codeCmd(t)) + '</pre><button data-copy="cmdCode">Copy</button></div>' +
+        '<div class="sub2">claude.ai, Claude Desktop and the phone app</div>' + webSteps(C(), 'm') +
+        '<div class="sub2">Try it</div><div class="note">Ask Claude: <b>' + esc(TRY) + '</b></div>' +
+        '</div><div class="mf"><button id="mMore">More options</button><span class="sp"></span><button id="mClose" class="on">Done</button></div>', true);
+      $('#mClose', m).onclick = closeModal;
+      $('#mMore', m).onclick = function () { closeModal(); openClaude('connect'); };
+    });
+  }
+
+  // ---------- levels ----------
+  var LVL = [['read', 'Look only', 'Read everything: pages and buttons with their actions and feedbacks, triggers, connections and their status, variables, surfaces, the log. Change nothing.'],
+    ['build', 'Help build', 'Also program Companion: create and change buttons, pages, triggers and custom variables. Every change is backed up and waits for your Keep or Revert.'],
+    ['hands', 'Hands on', 'Also press buttons, run triggers, set custom variable values and turn connections on and off. This acts on the real show: cameras, switchers, lights, audio.'],
+    ['full', 'Full', 'Also delete buttons, pages, triggers and custom variables (backed up first). Only on your network, never from outside.']];
+  var LVL_NAME = { read: 'Look only', build: 'Help build', hands: 'Hands on', full: 'Full' };
+  var LVL_WARN = { hands: 'Claude will be able to press buttons and run triggers, which act on the real show (cameras, switchers, lights, audio). Protected pages stay protected.',
+    full: 'Claude will also be able to delete buttons, pages, triggers and custom variables. Each is backed up first.' };
+  function modeText(a) { return a && a.enabled ? LVL_NAME[a.local] || 'Look only' : 'Off'; }
+  function LEVELS_UP_TO(max) { var all = ['read', 'build', 'hands', 'full']; return all.slice(0, all.indexOf(max) + 1); }
+  function lvlSeg(attr, id, cur, max) {
+    return '<div class="seg" ' + attr + '="' + esc(id) + '">' + LVL.filter(function (l) { return LEVELS_UP_TO(max).indexOf(l[0]) >= 0; }).map(function (l) {
+      return '<button data-v="' + l[0] + '"' + (cur === l[0] ? ' class="on"' : '') + '>' + l[1] + '</button>'; }).join('') + '</div>';
+  }
+  function raise(level, fn) { if (LVL_WARN[level]) confirmBox('Allow ' + LVL_NAME[level] + '?', '<p>' + esc(LVL_WARN[level]) + '</p>', 'Allow').then(function (y) { if (y) fn(); }); else fn(); }
+  function setAccess(patch) { return capi('access', patch).then(function (j) { report(j, 'Could not save'); return j; }); }
+  $('#lvlTable').innerHTML = LVL.map(function (l) { return '<div class="tl"><b style="min-width:92px;font-family:inherit">' + esc(l[1]) + '</b><span>' + esc(l[2]) + '</span></div>'; }).join('') +
+    '<div class="note" style="margin-top:8px">Each level includes the ones above it. Protected pages (below) stay untouched at every level.</div>';
+
+  function actRows(list, max) {
+    if (!list.length) return '<div class="note" style="padding:12px 0">Nothing yet. When Claude uses LiveCompanion, every request shows up here.</div>';
+    return list.slice(0, max).map(function (a) {
+      return '<div class="arow"><span class="dot ' + (a.ok ? 'ok' : 'bad') + '"></span><div class="an"><b>' + esc(a.tool) + '</b>' + (a.who ? ' <small style="color:var(--dim)">' + esc(a.who) + (a.remote ? ' · outside' : '') + '</small>' : '') + (a.args ? '<span title="' + esc(a.args) + '">' + esc(a.args) + '</span>' : '') +
+        (a.error ? '<span class="aerr">' + esc(a.error) + '</span>' : '') + '</div><div class="aw">' + esc(ago(a.t)) + (a.ms ? ' · ' + a.ms + ' ms' : '') + (a.write ? '<span class="chip w">change</span>' : '') + '</div></div>';
+    }).join('');
+  }
+
+  // ---------- the Claude card on the dashboard ----------
+  function crow(label, value) { return '<div class="row"><div class="rl">' + esc(label) + '</div><div class="rv">' + value + '</div><div></div></div>'; }
+  var ccSig = '';
+  function renderClaudeCard(s) {
+    var c = s.claude; if (!c) return;
+    var st = c.companion.status || {}, a = c.access, sec = c.security || {};
+    var set = !!(c.setup && c.setup.completed) || !!c.companion.url;
+    var card = $('#ccCard');
+    var anyWrite = a.local !== 'read' || (sec.mode === 'exposed' && (sec.connections || []).some(function (x) { return x.effective !== 'read'; }));
+    var cls = 'dev ' + (!set ? 'none' : !a.enabled ? 'off' : anyWrite ? 'upd' : '');
+    var rr = '';
+    if (!set) rr = '<div class="note">Let Claude look inside your central Companion: read buttons, triggers and variables, and, when you allow it, program them.</div><div style="margin-top:10px"><button class="on" id="ccStart">Set up development mode</button></div>';
+    else {
+      rr += crow('Companion', !st.configured ? '<span class="up">No address yet</span>' : st.checking ? 'Checking…' : st.ok ? '<span class="good">Connected</span> ' + esc(st.version || '') + (st.pages ? '<small>' + plural(st.pages, 'page') + ' · ' + plural(st.connections || 0, 'connection') + (st.connErrors ? ' · <span class="bad">' + st.connErrors + ' with errors</span>' : '') + '</small>' : '') : '<span class="bad">Not reachable</span><small>' + esc(st.error) + '</small>');
+      rr += crow('Your network', esc(modeText(a)));
+      if (sec.mode === 'exposed') rr += crow('From outside', (sec.connections || []).length ? (sec.connections || []).map(function (x) { return esc(x.client) + ': ' + esc(LVL_NAME[x.effective]); }).join('<br>') : 'No connections');
+      if ((a.protectedPages || []).length) rr += crow('Protected', 'page' + (a.protectedPages.length > 1 ? 's ' : ' ') + esc(a.protectedPages.join(', ')));
+      var last = (c.activity || [])[0];
+      if (last) rr += crow('Last request', '<code>' + esc(last.tool) + '</code> <small>' + esc(ago(last.t)) + (last.ok ? '' : ' · failed') + '</small>');
+    }
+    var sig = cls + rr + a.enabled + set;
+    if (sig !== ccSig) {
+      ccSig = sig;
+      card.className = cls;
+      $('#ccDot').className = 'dot ' + (!set ? '' : !a.enabled ? 'bad' : (st.configured && !st.ok) ? 'bad' : anyWrite ? 'warn' : 'ok');
+      $('#ccSub').textContent = !set ? 'Not set up' : (c.companion.url || 'No Companion address') + ' · ' + (a.enabled ? (anyWrite ? 'Claude can make changes' : 'Claude can look, not touch') : 'every request is refused');
+      $('#ccRows').innerHTML = rr;
+      $('#ccSeg').classList.toggle('hide', !set);
+      paintSeg($('#ccSeg'), a.enabled ? '1' : '0');
+      $('#ccPerm').classList.toggle('hide', !set); $('#ccConn').classList.toggle('hide', !set);
+      var cs0 = $('#ccStart'); if (cs0) cs0.onclick = function () { openWizard(); };
+    }
+    $('#ccWhen').textContent = set ? (c.lastCallAt ? 'Last request ' + ago(c.lastCallAt) : 'No requests yet') : '';
+  }
+  $$('#ccSeg button').forEach(function (b) { b.onclick = function () { setAccess({ enabled: b.dataset.v === '1' }); }; });
+  $('#ccPerm').onclick = function () { openClaude('perm'); };
+  $('#ccConn').onclick = openConnect;
+
+  // ---------- Claude settings panes ----------
+  var whoSig = '';
+  function renderWho(c) {
+    var a = c.access, sec = c.security || {}, ex = sec.mode === 'exposed', t = sec.totp || {};
+    var sig = JSON.stringify([a.local, a.outsideMax, ex, (sec.connections || []).map(function (x) { return [x.id, x.scope, x.effective]; }), sec.allowTokenRemote, sec.tokenScope, t.enabled, t.maxScope]);
+    if (sig === whoSig) return;
+    whoSig = sig;
+    var cap = function (lvl) { var e = LEVELS_UP_TO(a.outsideMax).indexOf(lvl) >= 0 ? lvl : a.outsideMax; return e !== lvl ? '<span class="warn2" style="font-size:12px"> · limited to ' + esc(LVL_NAME[e]) + ' by the outside limit</span>' : ''; };
+    var h = '<div class="set first"><div class="sl"><b>Claude on your network</b><span>Claude Code with the access token, on this dashboard\'s port</span></div><div class="sc">' + lvlSeg('data-lvl', 'local', a.local, 'full') + '</div></div>';
+    h += '<div class="set"><div class="sl"><b>Highest level from outside</b><span>A limit over every connection through the public address. Full is never allowed from outside</span></div><div class="sc">' + lvlSeg('data-lvl', 'outsideMax', a.outsideMax, 'hands') + '</div></div>';
+    if (ex) {
+      (sec.connections || []).forEach(function (x) {
+        h += '<div class="set"><div class="sl"><b>' + esc(x.client) + '</b><span>Connection from outside, signed in ' + esc(when(x.createdAt)) + cap(x.scope) + '</span></div><div class="sc">' + lvlSeg('data-clvl', x.id, x.scope, 'hands') + '</div></div>';
+      });
+      if (!(sec.connections || []).length) h += '<div class="set"><div class="sl"><span>No connections from outside yet. When you approve one, you choose its level, and it appears here.</span></div></div>';
+      if (sec.allowTokenRemote) h += '<div class="set"><div class="sl"><b>Access token from outside</b><span>Apps that send the token as a header over the public address' + cap(sec.tokenScope) + '</span></div><div class="sc">' + lvlSeg('data-tlvl', 'x', sec.tokenScope, 'hands') + '</div></div>';
+      if (t.enabled) h += '<div class="set"><div class="sl"><b>Approving with an authenticator code</b><span>The highest level a code may grant; higher still needs approval here</span></div><div class="sc">' + lvlSeg('data-qlvl', 'x', t.maxScope, 'hands') + '</div></div>';
+    } else h += '<div class="set"><div class="sl"><span>Connections from outside appear here when exposed mode is on (Security tab).</span></div></div>';
+    $('#whoBox').innerHTML = h;
+    $$('[data-lvl] button').forEach(function (b) { b.onclick = function () { var k = b.parentNode.dataset.lvl, patch = {}; patch[k] = b.dataset.v; raise(b.dataset.v, function () { setAccess(patch).then(function () { whoSig = ''; }); }); }; });
+    $$('[data-clvl] button').forEach(function (b) { b.onclick = function () { var id = b.parentNode.dataset.clvl; raise(b.dataset.v, function () { capi('connections/scope', { id: id, scope: b.dataset.v }).then(function (j) { report(j, 'Could not change it'); whoSig = ''; connSig = ''; }); }); }; });
+    $$('[data-tlvl] button').forEach(function (b) { b.onclick = function () { raise(b.dataset.v, function () { capi('security', { tokenScope: b.dataset.v }).then(function (j) { report(j, 'Could not save'); whoSig = ''; }); }); }; });
+    $$('[data-qlvl] button').forEach(function (b) { b.onclick = function () { raise(b.dataset.v, function () { capi('totp', { maxScope: b.dataset.v }).then(function (j) { report(j, 'Could not save'); whoSig = ''; }); }); }; });
+  }
+
+  function companionStatusText(st) {
+    if (!st.configured) return 'Not set up yet';
+    if (st.checking) return 'Checking…';
+    if (st.ok) return '<span style="color:var(--ok)">Connected to Companion ' + esc(st.version || '') + (st.pages ? ' · ' + plural(st.pages, 'page') : '') + '</span>';
+    return '<span style="color:var(--bad)">' + esc(st.error || 'Not reachable') + '</span>';
+  }
+  function fillPick(sel, c) {
+    var list = c.companion.candidates || [];
+    sel.classList.toggle('hide', !list.length);
+    var sig = JSON.stringify(list);
+    if (sel.dataset.sig === sig) return;
+    sel.dataset.sig = sig;
+    sel.innerHTML = '<option value="">Your devices…</option>' + list.map(function (d) { return '<option value="' + esc(d.id) + '" data-host="' + esc(d.host) + '">' + esc(d.name) + ' (' + esc(d.host) + ')</option>'; }).join('');
+  }
+  function updateClaudePanes(s) {
+    var c = s.claude; if (!c) return;
+    if (claudeSub === 'connect') {
+      if (!ccLoaded) { $('#ccUrl').value = c.companion.url || ''; ccLoaded = true; }
+      fillPick($('#ccPick'), c);
+      $('#ccStat').innerHTML = companionStatusText(c.companion.status || {});
+      $('#ccUrl').disabled = $('#ccSave').disabled = !!s.demo;
+      var wsig = (c.security && c.security.mode) + c.publicUrl + (c.security && c.security.allowTokenRemote);
+      if ($('#webConn').dataset.sig !== wsig) { $('#webConn').dataset.sig = wsig; $('#webConn').innerHTML = webSteps(c, 'w'); }
+      fillConnect(document);
+    }
+    if (claudeSub === 'perm') {
+      var a = c.access;
+      paintSeg($('#pEnabled'), a.enabled ? '1' : '0');
+      paintSeg($('#rvOn'), c.review.enabled ? '1' : '0');
+      if (document.activeElement !== $('#rvTime')) $('#rvTime').value = String(c.review.timeoutMin);
+      paintSeg($('#rvWhat'), c.review.ifNoAnswer);
+      $('#rvWhat').classList.toggle('hide', !c.review.timeoutMin);
+      renderWho(c);
+      if (!protLoaded) { $('#pProt').value = (a.protectedPages || []).join(', '); protLoaded = true; }
+      $('#toolList').innerHTML = (c.tools || []).map(function (t) {
+        return '<div class="tl' + (t.on ? '' : ' off') + '"><b>' + esc(t.name) + '</b><span>' + esc(t.title) + '</span>' + (t.needs ? '<span class="chip ' + (t.on ? 'w' : '') + '">' + (t.on ? (t.needs === 'press' ? 'acts' : 'change') : 'off') + '</span>' : '<span class="chip o">read</span>') + '</div>';
+      }).join('');
+    }
+    if (claudeSub === 'activity') {
+      var done = (c.reviews || []).filter(function (r) { return r.status !== 'waiting'; });
+      $('#rvHist').innerHTML = done.length ? done.slice(0, 30).map(function (r) {
+        return '<div class="rhist"><span class="dot ' + (r.status === 'kept' ? 'ok' : r.status === 'reverted' ? 'warn' : '') + '"></span><span><b>' + esc(r.alias) + '</b> <small>' + esc(KIND_NAME[r.kind] || r.kind) + ' ' + esc(r.action || 'made and deleted again') + ' by ' + esc(r.who || 'Claude') + '</small></span>' +
+          '<small>' + esc(r.status === 'withdrawn' ? 'nothing left to review' : r.status + (r.by && r.by !== 'you' ? ' (' + r.by + ')' : '')) + ' · ' + esc(ago(r.decidedAt)) + '</small></div>';
+      }).join('') : '<div class="note">Nothing yet. Kept and reverted changes show up here.</div>';
+      $('#cactNote').textContent = c.activityTotal ? 'Newest first. Showing ' + Math.min(60, c.activityTotal) + ' of ' + c.activityTotal + ' kept (the last 300).' : '';
+      $('#cactFull').innerHTML = actRows(c.activity || [], 60);
+    }
+    if (claudeSub === 'backups' && cbkSig !== c.backupCount) { cbkSig = c.backupCount; loadClaudeBackups(); }
+  }
+
+  $('#ccPick').onchange = function () { var o = this.options[this.selectedIndex]; if (o && o.dataset.host) $('#ccUrl').value = 'http://' + o.dataset.host + ':8000'; };
+  function saveCompanion(url, deviceId) {
+    $('#ccErr').classList.add('hide');
+    return capi('companion', { url: url, deviceId: deviceId || '' }).then(function (j) {
+      if (j.cancelled) return j;
+      if (!j.ok) { $('#ccErr').textContent = j.error || 'Could not save'; $('#ccErr').classList.remove('hide'); }
+      else toast('Saved. Testing…', true);
+      return j;
+    });
+  }
+  $('#ccSave').onclick = function () { var sel = $('#ccPick'); saveCompanion($('#ccUrl').value.trim(), sel.value); };
+  $('#ccTest').onclick = function () { var b = this; b.disabled = true; capi('companion-test', {}).then(function (j) { b.disabled = false; if (j.ok) toast('Companion answered', true); else report(j, 'Could not reach Companion'); }); };
+  $('#tokShow').onclick = function () { getToken(); };
+  $('#tokNew').onclick = function () {
+    confirmBox('Make a new token?', '<p>The old token stops working right away. Claude Code and any connectors need the new connection details.</p>', 'New token', true).then(function (y) {
+      if (!y) return;
+      capi('token', { regenerate: true }).then(function (j) { report(j, 'Could not make a new token'); if (j.ok) { token = j.token; fillConnect(document); toast('New token made', true); } });
+    });
+  };
+  $$('#pEnabled button').forEach(function (b) { b.onclick = function () { setAccess({ enabled: b.dataset.v === '1' }); }; });
+  $$('#rvOn button').forEach(function (b) { b.onclick = function () { capi('review', { enabled: b.dataset.v === '1' }).then(function (j) { report(j, 'Could not save'); }); }; });
+  $('#rvTime').onchange = function () { capi('review', { timeoutMin: Number(this.value) }).then(function (j) { report(j, 'Could not save'); }); };
+  $$('#rvWhat button').forEach(function (b) { b.onclick = function () { capi('review', { ifNoAnswer: b.dataset.v }).then(function (j) { report(j, 'Could not save'); }); }; });
+  $('#pProtSave').onclick = function () {
+    var v = $('#pProt').value, now = (C().access.protectedPages || []), next = v.split(/[\s,]+/).filter(Boolean).map(Number);
+    var removed = now.filter(function (d) { return next.indexOf(d) < 0; });
+    var go = function () { setAccess({ protectedPages: v }).then(function (j) { if (j.ok) { protLoaded = false; toast('Saved', true); } }); };
+    if (removed.length) confirmBox('Unprotect page ' + removed.join(', ') + '?', '<p>If Claude may build or press buttons, it will be able to change and press buttons on ' + (removed.length > 1 ? 'these pages' : 'this page') + '.</p>', 'Unprotect', true).then(function (y) { if (y) go(); });
+    else go();
+  };
+  $('#cactClear').onclick = function () {
+    confirmBox('Clear Claude\'s activity list?', '<p>The list of what Claude asked for is emptied. Companion itself is not touched.</p>', 'Clear', true).then(function (y) { if (y) capi('activity-clear', {}).then(function (j) { report(j, 'Could not clear'); }); });
+  };
+
+  // ---------- Claude's backups ----------
+  var KIND_NAME = { button: 'button', trigger: 'trigger', page: 'page', variable: 'custom variable' };
+  function loadClaudeBackups() {
+    fetch('api/claude/backups', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      var list = j.backups || [], box = $('#cbkList');
+      if (!list.length) { box.innerHTML = '<div class="note">' + (snap && snap.demo ? 'Demo mode keeps no backups.' : 'None yet. They appear when Claude changes or deletes something in Companion.') + '</div>'; return; }
+      box.innerHTML = list.map(function (b, i) {
+        return '<div class="bk"><span><b>' + esc(b.alias || b.id) + '</b> <small>' + esc(KIND_NAME[b.kind] || b.kind) + ' ' + esc(b.id) + '</small><br><small>' + esc(when(b.savedAt)) + ' · ' + esc(String(b.reason).replace(/-/g, ' ')) + '</small></span>' +
+          '<button data-cdl="' + i + '">Download</button><button data-crs="' + i + '">Restore</button></div>';
+      }).join('');
+      $$('[data-cdl]', box).forEach(function (btn) { btn.onclick = function () { var b = list[btn.dataset.cdl]; location.href = 'api/claude/backup?kind=' + encodeURIComponent(b.kind) + '&id=' + encodeURIComponent(b.id) + '&file=' + encodeURIComponent(b.file) + '&pin=' + encodeURIComponent(pin); }; });
+      $$('[data-crs]', box).forEach(function (btn) {
+        btn.onclick = function () {
+          var b = list[btn.dataset.crs];
+          confirmBox('Restore ' + (b.alias || b.id) + '?', '<p>Puts the ' + esc(KIND_NAME[b.kind] || b.kind) + ' back the way it was on ' + esc(when(b.savedAt)) + '. The current version is backed up first. Companion uses it right away.</p>', 'Restore').then(function (yes) {
+            if (!yes) return;
+            capi('restore', { kind: b.kind, id: b.id, file: b.file }).then(function (r) { report(r, 'Could not restore'); if (r.ok) { toast('Restored', true); loadClaudeBackups(); } });
+          });
+        };
+      });
+    }).catch(function () { $('#cbkList').innerHTML = '<div class="note">Could not load the backups.</div>'; });
+  }
+
+  // ---------- keep or revert ----------
+  /** Companion's settings shown as YAML-like lines, for the before and after view */
+  function yamlLines(v, ind) {
+    ind = ind || '';
+    var out = [], plain = /^[A-Za-z_][\w .,/@%+()'-]*$/;
+    function sc(x) {
+      if (x === null || x === undefined) return 'null';
+      if (typeof x === 'number' || typeof x === 'boolean') return String(x);
+      if (Array.isArray(x)) return '[]';
+      if (typeof x === 'object') return '{}';
+      var t = String(x);
+      return plain.test(t) && !/^(true|false|yes|no|on|off|null)$/i.test(t) && t.trim() === t ? t : JSON.stringify(t);
+    }
+    var leaf = function (x) { return x === null || typeof x !== 'object' || (Array.isArray(x) ? !x.length : !Object.keys(x).length); };
+    if (Array.isArray(v)) v.forEach(function (it) {
+      if (leaf(it)) out.push(ind + '- ' + sc(it));
+      else { var sub = yamlLines(it, ind + '  '); sub[0] = ind + '- ' + sub[0].slice(ind.length + 2); out = out.concat(sub); }
+    });
+    else Object.keys(v || {}).forEach(function (k) {
+      var x = v[k], key = /^[\w-]+$/.test(k) ? k : JSON.stringify(k);
+      if (leaf(x)) out.push(ind + key + ': ' + sc(x));
+      else { out.push(ind + key + ':'); out = out.concat(yamlLines(x, ind + '  ')); }
+    });
+    return out;
+  }
+  function diffHtml(a, b) {
+    var n = a.length, m = b.length, L = [], i, j;
+    for (i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) for (j = m - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var rows = []; i = 0; j = 0;
+    while (i < n || j < m) {
+      if (i < n && j < m && a[i] === b[j]) { rows.push(['s', a[i]]); i++; j++; }
+      else if (j < m && (i >= n || L[i][j + 1] >= L[i + 1][j])) { rows.push(['a', b[j]]); j++; }
+      else { rows.push(['d', a[i]]); i++; }
+    }
+    var keep = rows.map(function (r, k) { if (r[0] !== 's') return true; for (var d = -2; d <= 2; d++) { var q = rows[k + d]; if (q && q[0] !== 's') return true; } return false; });
+    var h = '', skipped = 0;
+    rows.forEach(function (r, k) {
+      if (!keep[k]) { skipped++; return; }
+      if (skipped) { h += '<div class="gap">… ' + plural(skipped, 'line') + ' unchanged</div>'; skipped = 0; }
+      h += '<div class="' + r[0] + '">' + esc(r[1] || ' ') + '</div>';
+    });
+    if (skipped) h += '<div class="gap">… ' + plural(skipped, 'line') + ' unchanged</div>';
+    return h || '<div class="gap">No difference</div>';
+  }
+  var rvSig = '', rvOpen = {};
+  var ACT = { changed: ['changed', 'acc'], created: ['created', 'o'], deleted: ['deleted', 'b'] };
+  var A_KIND = { button: 'a button', trigger: 'a trigger', page: 'a page', variable: 'a custom variable' };
+  function left(ms, shortFmt) {
+    var sec = Math.max(0, Math.round(ms / 1000));
+    if (shortFmt || sec < 3600) return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    var hh = Math.floor(sec / 3600), d = Math.floor(hh / 24);
+    return d >= 2 ? d + ' days' : hh + ' h ' + Math.floor((sec % 3600) / 60) + ' min';
+  }
+  setInterval(function () {
+    $$('[data-until]').forEach(function (el) {
+      var ms = Number(el.dataset.until) - Date.now();
+      el.textContent = (el.dataset.pre || '') + left(ms, el.dataset.fmt === 'mmss');
+      el.classList.toggle('urgent', ms < 60000 || (el.dataset.fmt !== 'mmss' && ms < 15 * 60000));
+    });
+  }, 1000);
+  function renderReviews(s) {
+    var c = s.claude || {}, list = (c.reviews || []).filter(function (r) { return r.status === 'waiting'; });
+    var sig = JSON.stringify(list.map(function (r) { return [r.rid, r.updatedAt, r.autoAt, !!rvOpen[r.rid]]; }));
+    if (sig === rvSig) return;
+    rvSig = sig;
+    $('#reviews').innerHTML = list.map(function (r) {
+      var a = ACT[r.action] || [r.action, ''];
+      var auto = r.autoAt ? '<span class="tm">' + (c.review.ifNoAnswer === 'revert' ? 'Reverts' : 'Kept') + ' automatically in <b data-until="' + Number(r.autoAt) + '">' + left(r.autoAt - Date.now()) + '</b></span>' : '<span class="tm">waiting for you</span>';
+      return '<div class="rev"><div class="ah"><span class="dot acc"></span>' + esc(r.who || 'Claude') + ' ' + esc(a[0]) + ' ' + esc(A_KIND[r.kind] || r.kind) + ' in Companion: ' + esc(r.alias) + ' <span class="chip ' + a[1] + '">' + esc(a[0]) + '</span>' + auto + '</div>' +
+        '<div class="sub">' + esc(when(r.at)) + (r.where === 'outside' ? ' · from outside' : '') + (r.changes > 1 ? ' · changed ' + r.changes + ' times; Revert goes back to the version before the first change' : '') + ' · the old version is backed up</div>' +
+        (rvOpen[r.rid] ? '<div class="diff">' + diffHtml(r.beforeView ? yamlLines(r.beforeView) : [], r.afterView ? yamlLines(r.afterView) : []) + '</div>' : '') +
+        '<div class="af"><button data-rvshow="' + r.rid + '">' + (rvOpen[r.rid] ? 'Hide changes' : 'Show changes') + '</button><span class="sp"></span>' +
+        '<button class="danger" data-rvrevert="' + r.rid + '">Revert</button><button class="on" data-rvkeep="' + r.rid + '">Keep</button></div></div>';
+    }).join('');
+    $$('[data-rvshow]').forEach(function (b) { b.onclick = function () { rvOpen[b.dataset.rvshow] = !rvOpen[b.dataset.rvshow]; rvSig = ''; renderReviews(snap); }; });
+    $$('[data-rvkeep]').forEach(function (b) { b.onclick = function () { b.disabled = true; capi('review', { rid: b.dataset.rvkeep, keep: true }).then(function (j) { b.disabled = false; report(j, 'Could not keep it'); if (j.ok) toast('Kept', true); }); }; });
+    $$('[data-rvrevert]').forEach(function (b) {
+      b.onclick = function () {
+        var r = list.filter(function (x) { return x.rid === b.dataset.rvrevert; })[0];
+        var k = KIND_NAME[r.kind] || r.kind;
+        var what = r.action === 'created' ? 'removes the new ' + k : r.action === 'deleted' ? 'brings the ' + k + ' back' : 'puts the ' + k + ' back the way it was before Claude\'s first change';
+        confirmBox('Revert ' + r.alias + '?', '<p>This ' + what + '. Companion uses it right away. The current version is backed up first.</p>', 'Revert', true).then(function (y) {
+          if (!y) return;
+          capi('review', { rid: r.rid, keep: false }).then(function (j) { report(j, 'Could not revert'); if (j.ok) toast('Reverted', true); });
+        });
+      };
+    });
+  }
+
+  // ---------- exposed mode: approvals, connections, events ----------
+  var SCOPES = [['read', 'Look only'], ['build', 'Help build'], ['hands', 'Hands on']];
+  function scopeSeg(attr, id, cur) { return '<div class="seg" ' + attr + '="' + esc(id) + '">' + SCOPES.map(function (x) { return '<button data-v="' + x[0] + '"' + (cur === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div>'; }
+  var SPANS = [['1h', '1 hour'], ['8h', '8 hours'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days'], ['none', 'No limit']];
+  function spanSelect(attr, id, cur) { return '<select ' + attr + '="' + esc(id) + '" aria-label="Access time">' + SPANS.map(function (x) { return '<option value="' + x[0] + '"' + (cur === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>'; }
+  function renderApprovals(s) {
+    var sec = (s.claude && s.claude.security) || {}, list = sec.pending || [];
+    var sig = list.map(function (p) { return p.id + (apScope[p.id] || 'read') + (apSpan[p.id] || ''); }).join('|') + sec.accessDefault;
+    if (sig === apSig) return;
+    apSig = sig;
+    $('#approvals').innerHTML = list.map(function (p) {
+      var sc = apScope[p.id] || 'read';
+      return '<div class="appr"><div class="ah"><span class="dot warn"></span>Claude wants to connect from outside<span class="tm">Request expires in <b data-until="' + Number(p.expiresAt) + '" data-fmt="mmss">' + left(p.expiresAt - Date.now(), true) + '</b></span></div>' +
+        '<div class="ab"><div class="acode">' + esc(p.code) + '</div><div class="ai2"><b>' + esc(p.client) + '</b>' + (p.clientHost ? esc(p.clientHost) + ' · ' : '') + 'from ' + esc(p.ip) + ' · ' + esc(ago(p.createdAt)) +
+        '<br>Approve only if the sign-in page you just opened shows this same code.</div></div>' +
+        '<div class="af"><span class="note">It may</span>' + scopeSeg('data-aps', p.id, sc) + '<span class="note">for</span>' + spanSelect('data-apspan', p.id, apSpan[p.id] || sec.accessDefault || 'none') +
+        '<span class="sp"></span><button data-deny="' + esc(p.id) + '">Deny</button><button class="on" data-approve="' + esc(p.id) + '">Approve</button></div></div>';
+    }).join('');
+    $$('[data-aps]').forEach(function (g) { $$('button', g).forEach(function (b) { b.onclick = function () { apScope[g.dataset.aps] = b.dataset.v; apSig = ''; renderApprovals(snap); }; }); });
+    $$('[data-apspan]').forEach(function (sel) { sel.onchange = function () { apSpan[sel.dataset.apspan] = sel.value; }; });
+    $$('[data-approve]').forEach(function (b) { b.onclick = function () { decide(b.dataset.approve, true); }; });
+    $$('[data-deny]').forEach(function (b) { b.onclick = function () { decide(b.dataset.deny, false); }; });
+  }
+  function decide(id, yes) {
+    var sc = apScope[id] || 'read', sp = apSpan[id] || C().security.accessDefault || 'none';
+    var go = function () { capi('connections/decide', { id: id, approve: yes, scope: sc, span: sp }).then(function (j) { report(j, 'Could not do that'); if (j.ok) { apSig = ''; toast(yes ? 'Approved. Claude is signing in' : 'Denied', yes); } }); };
+    if (yes && sc === 'hands') confirmBox('Let this connection act on the show?', '<p>Claude, from outside, will be able to press buttons and run triggers (within Permissions). Protected pages stay protected.</p>', 'Approve').then(function (y) { if (y) go(); });
+    else go();
+  }
+
+  var EV = {
+    'connection-requested': ['Claude asked to connect', 'acc'], 'connection-approved': ['Connection approved', 'ok'], 'connection-denied': ['Connection denied', ''],
+    'connection-created': ['Connection signed in', 'ok'], 'connection-revoked': ['Connection revoked', 'warn'], 'connection-changed': ['Connection permission changed', ''],
+    'client-registered': ['An app registered for sign-in', ''], 'client-metadata-failed': ['Could not read an app\'s details', 'warn'],
+    'address-locked': ['Address locked out after failed attempts', 'bad'], 'public-paused': ['Sign-in from outside paused: many failures', 'bad'],
+    'pin-lockout': ['Too many wrong PINs', 'bad'], 'admin-refused': ['Blocked a request to the dashboard port', 'bad'],
+    'code-wrong': ['Wrong authenticator code', 'warn'], 'codes-paused': ['Code approvals paused for an hour', 'bad'],
+    'codes-switched-off': ['Code approvals switched off', 'bad'], 'codes-enabled': ['Authenticator approvals set up', 'ok'],
+    'codes-disabled': ['Authenticator approvals turned off', ''], 'codes-resumed': ['Code approvals switched back on', 'ok'],
+    'mode-changed': ['Mode changed', 'warn'], 'token-remote': ['Access token from outside changed', 'warn'], 'token-replaced': ['New access token made', '']
+  };
+  function evDetail(e) {
+    var bits = [];
+    if (e.client) bits.push(e.client); if (e.code) bits.push('code ' + e.code); if (e.scope) bits.push((SCOPES.filter(function (x) { return x[0] === e.scope; })[0] || [0, e.scope])[1]);
+    if (e.mode) bits.push(e.mode === 'exposed' ? 'Exposed' : 'Local only'); if (e.allowed != null) bits.push(e.allowed ? 'On' : 'Off');
+    if (e.via) bits.push('with ' + e.via);
+    if (e.ip) bits.push('from ' + e.ip); if (e.why) bits.push(e.why); if (e.path) bits.push(e.path); if (e.error) bits.push(e.error);
+    return bits.join(' · ');
+  }
+  function chk(ok, title, note) { return '<div class="chk ' + (ok === true ? 'ok' : ok === false ? 'bad' : '') + '"><span class="ck">' + (ok === true ? '✓' : ok === false ? '!' : '·') + '</span><span>' + title + (note ? '<small>' + note + '</small>' : '') + '</span></div>'; }
+
+  function renderSecurity(s) {
+    var c = s.claude, sec = c.security || {}, ex = sec.mode === 'exposed';
+    paintSeg($('#secMode'), sec.mode);
+    $('#secModeNote').textContent = ex ? 'Claude can reach LiveCompanion from outside through your reverse proxy. This dashboard only opens from your own network.' : 'Only devices on your network can reach Claude\'s endpoint. The public port answers nothing.';
+    var t = sec.selfTest;
+    $('#secReq').innerHTML = chk(!!s.pinRequired, 'Control PIN is set', s.pinRequired ? '' : 'Needed before exposing: Settings > Settings > Control') +
+      chk(!!sec.publicUrl, 'Public address is set', sec.publicUrl || 'Enter it below') +
+      chk(t ? t.ok : null, 'Proxy check', t ? (t.ok ? 'Passed ' + ago(t.at) : 'Did not pass. See the results below') : 'Not run yet');
+    if (!pubLoaded) { $('#secPub').value = sec.publicUrl || ''; pubLoaded = true; }
+    $('#secTestOut').innerHTML = t ? (t.checks || []).map(function (x) { return chk(x.ok, esc(x.name), esc(x.detail)); }).join('') + (t.error ? '<div class="errbox">' + esc(t.error) + '</div>' : '') : '';
+    var hst = location.hostname;
+    $('#secProxy').innerHTML = '<p class="note" style="margin:0 0 8px">LiveCompanion listens on two ports. Forward <b>only the public one</b>.</p>' +
+      chk(true, 'Public port: container port <code>' + esc(sec.publicPort) + '</code>', 'In LiveCompanion\'s TrueNAS YAML it is published as <b>9081</b>. Point the proxy here: <code>http://' + esc(hst) + ':9081</code>') +
+      chk(false, 'Dashboard port: container port <code>' + esc(sec.adminPort) + '</code> (9080)', 'Never forward this one: it runs updates on your devices. While exposed, it refuses anything that comes through a proxy anyway.') +
+      '<ol class="steps"><li><b>Cloudflare Tunnel:</b> add a public hostname (for example <code>companion.yourdomain.com</code>) with service <code>http://' + esc(hst) + ':9081</code>.</li>' +
+      '<li><b>Nginx Proxy Manager, Caddy or Traefik:</b> a proxy host for that name, forwarding to <code>' + esc(hst) + ':9081</code>, with an https certificate.</li>' +
+      '<li>Keep the host name and send <code>X-Forwarded-Proto: https</code> (all of these do by default). LiveCompanion refuses plain http and other host names.</li></ol>';
+    var cs = JSON.stringify(sec.connections || []);
+    if (cs !== connSig) {
+      connSig = cs;
+      $('#secConns').innerHTML = (sec.connections || []).length ? sec.connections.map(function (x) {
+        return '<div class="conn"><div class="ci"><b>' + esc(x.client) + '</b><span>Signed in ' + esc(when(x.createdAt)) + ' · ' + (x.lastUsedAt ? 'last used ' + esc(ago(x.lastUsedAt)) + (x.lastIp ? ' from ' + esc(x.lastIp) : '') : 'not used yet') + ' · ' + plural(x.uses, 'request') + '</span>' +
+          '<span class="acc-left">' + (x.expiresAt ? 'Access ends in <b data-until="' + Number(x.expiresAt) + '">' + left(x.expiresAt - Date.now()) + '</b>' : 'No time limit (ends after 30 days unused)') + '</span></div>' +
+          '<span class="note">' + esc(LVL_NAME[x.effective] || x.effective) + ' · <button class="link" data-golvl>change</button></span><span class="cspan">' + spanSelect('data-cspan', x.id, '') + '</span><button class="danger" data-revoke="' + esc(x.id) + '">Revoke</button></div>';
+      }).join('') : '<div class="note">' + (ex ? 'None yet. When Claude signs in from outside and you approve it, it shows up here.' : 'None. Connections from outside need exposed mode.') + '</div>';
+      $$('[data-cspan]').forEach(function (sel) {
+        sel.insertAdjacentHTML('afterbegin', '<option value="" selected disabled>Access time…</option>');
+        sel.onchange = function () {
+          var label = sel.options[sel.selectedIndex].text;
+          confirmBox('Set access to ' + label.toLowerCase() + '?', '<p>' + (sel.value === 'none' ? 'This connection then has no time limit; it ends if unused for 30 days, or when you revoke it.' : 'Counted from now. When it runs out, the connection stops working and Claude has to sign in and be approved again.') + '</p>', 'Set').then(function (y) {
+            if (!y) { sel.selectedIndex = 0; return; }
+            capi('connections/span', { id: sel.dataset.cspan, span: sel.value }).then(function (j) { report(j, 'Could not change it'); connSig = ''; if (j.ok) toast('Access time set', true); });
+          });
+        };
+      });
+      $$('[data-golvl]').forEach(function (b) { b.onclick = function () { openClaude('perm'); }; });
+      $$('[data-revoke]').forEach(function (b) { b.onclick = function () { confirmBox('Revoke this connection?', '<p>It stops working at once. Claude has to sign in again, and you approve it again.</p>', 'Revoke', true).then(function (y) { if (y) capi('connections/revoke', { id: b.dataset.revoke }).then(function (j) { report(j, 'Could not revoke'); connSig = ''; }); }); }; });
+    }
+    $('#secRevokeAll').disabled = !(sec.connections || []).length;
+    renderTotp(c);
+    var ss = $('#secSpan');
+    if (!ss.options.length) ss.innerHTML = SPANS.map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('');
+    if (document.activeElement !== ss) ss.value = sec.accessDefault || 'none';
+    paintSeg($('#secTokRemote'), sec.allowTokenRemote ? '1' : '0');
+    $('#secKey').innerHTML = (sec.keyMismatch ? '<div class="errbox"><b>The encryption key does not match.</b> The saved passwords and tokens were encrypted with a different key. Put back the right LIVECOMPANION_MASTER_KEY, or enter the passwords again.</div>' : '') +
+      chk(true, 'Passwords and tokens are encrypted at rest (AES-256-GCM)', 'Device and mail passwords, Claude\'s access token and the authenticator secret. Sign-in tokens are stored only as hashes, never readable.') +
+      (sec.keyWhere === 'master' ? chk(true, 'The key comes from the app\'s environment', 'LIVECOMPANION_MASTER_KEY is set, and no key is stored on the data volume. A copy of the volume alone cannot be decrypted.')
+        : chk(null, 'The key is stored on the data volume', 'Anyone with a copy of the whole volume could decrypt them. To keep the key off it, add an environment variable <code>LIVECOMPANION_MASTER_KEY</code> with a long random value to the app\'s YAML. LiveCompanion moves everything over and deletes the key file.')) +
+      chk(true, 'Traffic from outside is https only', 'Your reverse proxy holds the certificate; LiveCompanion refuses anything that did not arrive over https.');
+    $('#secEvents').innerHTML = (sec.events || []).length ? sec.events.map(function (e) {
+      var d = EV[e.type] || [e.type, ''];
+      return '<div class="arow ev"><span class="dot ' + d[1] + '"></span><div class="an"><b style="font-family:inherit">' + esc(d[0]) + '</b><span style="font-family:inherit;white-space:normal">' + esc(evDetail(e)) + '</span></div><div class="aw">' + esc(ago(e.t)) + '</div></div>';
+    }).join('') : '<div class="note" style="padding:10px 0">Nothing yet.</div>';
+  }
+
+  var totpSig = '';
+  function renderTotp(c) {
+    var t = (c.security && c.security.totp) || {}, ex = c.security && c.security.mode === 'exposed';
+    var sig = JSON.stringify(t) + ex;
+    if (sig === totpSig) return;
+    totpSig = sig;
+    var h = '';
+    if (!t.enabled) {
+      h = '<div class="set first"><div class="sl"><b>Not set up</b><span>Takes a minute: scan a QR code with your authenticator app, then type the code it shows.</span></div><div class="sc"><button class="on" id="totpSetup">Set up</button></div></div>';
+    } else {
+      if (t.off) h += '<div class="errbox"><b>Code approvals are switched off.</b> There were 20 wrong codes within 24 hours, so LiveCompanion stopped accepting codes. Check the security events. <button class="on" id="totpResume" style="margin-left:6px">Switch back on</button></div>';
+      else if (t.paused) h += '<div class="errbox" style="border-color:var(--warn);background:color-mix(in srgb, var(--warn) 10%, transparent)">Paused for up to an hour after 5 wrong codes. Approving here still works.</div>';
+      h += chk(true, 'On since ' + esc(when(t.since)), ex ? (t.failsToday ? plural(t.failsToday, 'wrong code') + ' in the last 24 hours' : 'No wrong codes in the last 24 hours') : 'Only used in exposed mode');
+      h += '<div class="set"><div class="sl"><span>A code may approve up to <b>' + esc(LVL_NAME[t.maxScope]) + '</b>. Change it under Permissions.</span></div></div>';
+      h += '<div class="set"><div class="sl"><span>Got a new phone? Set it up again; the old app\'s codes stop working.</span></div><div class="sc"><button id="totpSetup">Set up again</button><button class="danger" id="totpOff">Turn off</button></div></div>';
+    }
+    $('#totpBox').innerHTML = h;
+    var su = $('#totpSetup'); if (su) su.onclick = setupTotp;
+    var rs = $('#totpResume'); if (rs) rs.onclick = function () { capi('totp', { action: 'resume' }).then(function (j) { report(j, 'Could not do that'); }); };
+    var of = $('#totpOff'); if (of) of.onclick = function () { confirmBox('Turn off authenticator approvals?', '<p>New connections can then only be approved here. Existing connections keep working.</p>', 'Turn off', true).then(function (y) { if (y) capi('totp', { action: 'disable' }).then(function (j) { report(j, 'Could not turn it off'); }); }); };
+  }
+  function setupTotp() {
+    capi('totp', { action: 'setup' }).then(function (j) {
+      if (!j.ok) { report(j, 'Could not start the setup'); return; }
+      var m = openModal('<div class="mh">Set up your authenticator app</div><div class="mb">' +
+        '<div class="qrwrap"><div class="qr">' + j.svg + '</div><div style="flex:1;min-width:220px">' +
+        '<ol class="steps" style="margin-top:0"><li>In your authenticator app, choose <b>add</b> (often a <b>+</b>) and <b>scan a QR code</b>.</li><li>Scan this code. The app adds <b>LiveCompanion</b>.</li><li>Type the 6-digit code it shows, below.</li></ol>' +
+        '<div class="note" style="margin:10px 0 4px">Can\'t scan? Enter this setup key instead (time-based, 6 digits):</div><div class="qrkey">' + esc(j.secret) + '</div>' +
+        '</div></div>' +
+        '<div class="set"><div class="sl"><b>Code from the app</b><span>Proves the app is set up right</span></div><div class="sc"><input id="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div></div>' +
+        '<div id="totpErr" class="formerr hide"></div>' +
+        '</div><div class="mf"><button id="mCancel">Cancel</button><button id="mGo" class="on">Turn on</button></div>', true);
+      var inp = $('#totpCode', m);
+      inp.addEventListener('input', function () { inp.value = inp.value.replace(/\D/g, '').slice(0, 6); });
+      inp.focus();
+      $('#mCancel', m).onclick = closeModal;
+      var go = function () {
+        capi('totp', { action: 'confirm', code: inp.value }).then(function (r) {
+          if (r.ok) { closeModal(); toast('Authenticator approvals are on', true); totpSig = ''; return; }
+          if (r.cancelled) return;
+          $('#totpErr', m).textContent = r.error || 'That did not work'; $('#totpErr', m).classList.remove('hide'); inp.value = ''; inp.focus();
+        });
+      };
+      $('#mGo', m).onclick = go;
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    });
+  }
+  $$('#secMode button').forEach(function (b) {
+    b.onclick = function () {
+      var v = b.dataset.v;
+      if (v === C().security.mode) return;
+      var go = function () { capi('security', { mode: v }).then(function (j) { report(j, 'Could not change the mode'); if (j.ok) toast(v === 'exposed' ? 'Exposed mode is on' : 'Local only. The public port answers nothing now', true); }); };
+      if (v === 'exposed') confirmBox('Turn on exposed mode?', '<p>LiveCompanion\'s public port starts answering Claude\'s sign-in and /mcp, for the reverse proxy to forward. This dashboard stays reachable only from your own network.</p><p>Point the proxy at the <b>public port (9081)</b>, never at 9080.</p>', 'Turn on').then(function (y) { if (y) go(); });
+      else go();
+    };
+  });
+  $('#secSpan').onchange = function () { capi('security', { accessDefault: this.value }).then(function (j) { report(j, 'Could not save'); if (j.ok) toast('Saved', true); }); };
+  $('#secPubSave').onclick = function () { capi('settings', { publicUrl: $('#secPub').value.trim() }).then(function (j) { report(j, 'Could not save'); if (j.ok) { pubLoaded = false; toast('Saved', true); } }); };
+  $('#secTest').onclick = function () { var b = this; b.disabled = true; b.textContent = 'Testing…'; capi('security/selftest', {}).then(function (j) { b.disabled = false; b.textContent = 'Test'; report(j, 'Could not test'); }); };
+  $$('#secTokRemote button').forEach(function (b) {
+    b.onclick = function () {
+      var on = b.dataset.v === '1';
+      var go = function () { capi('security', { allowTokenRemote: on }).then(function (j) { report(j, 'Could not save'); }); };
+      if (on) confirmBox('Accept the access token from outside?', '<p>Anyone who gets hold of the token could then use Claude\'s Companion tools from the internet, with the permission you choose, without approval here. Sign-in with approval is safer.</p>', 'Accept it', true).then(function (y) { if (y) go(); });
+      else go();
+    };
+  });
+  $('#secRevokeAll').onclick = function () { confirmBox('Revoke all connections from outside?', '<p>Every Claude app signed in from outside stops working at once and has to sign in and be approved again.</p>', 'Revoke all', true).then(function (y) { if (y) capi('connections/revoke', { all: true }).then(function (j) { report(j, 'Could not revoke'); connSig = ''; }); }); };
+  $('#secClear').onclick = function () { confirmBox('Clear the security events?', '<p>Only this list is emptied.</p>', 'Clear', true).then(function (y) { if (y) capi('security/clear', {}); }); };
+
+  // ---------- setup guide (one step at a time; every step and its status down the left) ----------
+  var WZ = [
+    { id: 'welcome', title: 'Welcome' },
+    { id: 'companion', title: 'Connect Companion' },
+    { id: 'perms', title: 'What Claude may do' },
+    { id: 'pin', title: 'Protect this page' },
+    { id: 'claude', title: 'Connect Claude' },
+    { id: 'done', title: 'Finish' }
+  ];
+  var CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+  var wzStep = 0, wzScrolled = -1, wzDrawn = '', wzTesting = false, wzTried = false, wzWho = 'code', wzPick = null;
+  function marks(c) { return (c.setup && c.setup.marks) || {}; }
+  function stepState(id, s) {
+    var c = s.claude, m = marks(c), st = c.companion.status || {};
+    switch (id) {
+      case 'welcome': return m.welcome || st.ok ? ['done', 'Read'] : ['todo', 'Start here'];
+      case 'companion':
+        if (st.ok) return ['done', 'Connected · ' + (st.version || '')];
+        if (st.configured && st.error && !st.checking) return ['bad', 'Not reachable'];
+        return ['todo', st.checking ? 'Testing…' : 'Its address'];
+      case 'perms': return m.perms ? ['done', modeText(c.access)] : ['todo', 'Choose'];
+      case 'pin': return s.pinRequired ? ['done', 'PIN set'] : m.pin === 'skip' ? ['skip', 'Skipped'] : ['todo', 'Optional'];
+      case 'claude': return c.everConnected ? ['done', 'Claude connected'] : m.claude === 'skip' ? ['skip', 'Skipped for now'] : ['todo', 'Waiting for Claude'];
+      case 'done': return c.setup && c.setup.completed ? ['done', 'Finished'] : ['todo', ''];
+    }
+    return ['todo', ''];
+  }
+  function firstOpenStep(s) {
+    for (var i = 0; i < WZ.length; i++) { var x = stepState(WZ[i].id, s)[0]; if (x === 'todo' || x === 'bad') return i; }
+    return WZ.length - 1;
+  }
+  function mark(name, value) { return capi('setup', { mark: name, value: value == null ? true : value }); }
+  function renderWizardSide(s) {
+    var done = 0;
+    var h = WZ.map(function (w, i) {
+      var st = stepState(w.id, s);
+      if (st[0] === 'done' || st[0] === 'skip') done++;
+      return '<button class="wzs ' + st[0] + (i === wzStep ? ' on' : '') + '" data-wz="' + i + '"><span class="num">' + (st[0] === 'done' ? CHECK : st[0] === 'bad' ? '!' : i + 1) + '</span>' +
+        '<span class="wt"><b>' + esc(w.title) + '</b><small>' + esc(st[1]) + '</small></span></button>';
+    }).join('');
+    $('#wzSide').innerHTML = '<div class="wzprog">Development mode setup · ' + Math.min(done, WZ.length) + ' of ' + WZ.length + ' done</div>' + h;
+    $$('[data-wz]', $('#wzSide')).forEach(function (b) { b.onclick = function () { goStep(+b.dataset.wz); }; });
+    var cur = $('.wzs.on', $('#wzSide'));
+    if (cur && wzScrolled !== wzStep && $('#wzSide').scrollWidth > $('#wzSide').clientWidth) { wzScrolled = wzStep; $('#wzSide').scrollLeft = cur.offsetLeft - 16; }
+  }
+  function goStep(i) {
+    wzStep = Math.max(0, Math.min(WZ.length - 1, i));
+    wzDrawn = ''; wzTried = false; wzPick = null;
+    if (snap) renderWizard(snap);
+    window.scrollTo(0, 0);
+  }
+  function next() { goStep(wzStep + 1); }
+  function foot(main, opts) {
+    opts = opts || {};
+    return '<div class="wzf">' + (wzStep > 0 ? '<button id="wzBack">Back</button>' : '') + '<span class="sp"></span>' +
+      (opts.alt ? '<button id="wzAlt">' + esc(opts.alt) + '</button>' : '') +
+      '<button id="wzNext" class="on"' + (opts.disabled ? ' disabled' : '') + '>' + esc(main) + '</button></div>';
+  }
+  function head(title) { return '<div class="wzk">Step ' + (wzStep + 1) + ' of ' + WZ.length + '</div><h3>' + esc(title) + '</h3>'; }
+  function wire(onNext, onAlt) {
+    var b = $('#wzBack'); if (b) b.onclick = function () { goStep(wzStep - 1); };
+    var n = $('#wzNext'); if (n) n.onclick = function () {
+      n.disabled = true;
+      Promise.resolve(onNext()).then(function (ok) { n.disabled = false; if (ok !== false) next(); });
+    };
+    var a = $('#wzAlt'); if (a && onAlt) a.onclick = onAlt;
+  }
+  function hintFor(err) {
+    if (/ECONNREFUSED|connection refused|Could not connect/i.test(err)) return 'Nothing answered at that address. Check the IP address, and that the port is the one Companion\'s launcher shows (usually 8000).';
+    if (/\.local/.test(err)) return 'Names ending in .local usually do not work from inside a container. Use Companion\'s IP address instead, for example http://192.168.1.20:8000.';
+    if (/ENOTFOUND|EAI_AGAIN/.test(err)) return 'That name was not found. Use Companion\'s IP address.';
+    if (/did not answer|timeout/i.test(err)) return 'No answer from that address. Use the address you open Companion\'s admin page at on this network.';
+    if (/refused|Unknown procedure|not found/i.test(err)) return 'Something answered, but not the way Companion 4 or 5 does. Check it is Companion\'s admin page, and that Companion is version 4.0 or newer.';
+    return '';
+  }
+  function wizardLive(s) {
+    var id = WZ[wzStep].id, c = s.claude, st = c.companion.status || {};
+    if (id === 'companion') {
+      var box = $('#wzConn'), nx = $('#wzNext');
+      if (!box) return;
+      if (wzTesting || st.checking) box.innerHTML = '<div class="waitbox"><span class="spin"></span>Talking to Companion…</div>';
+      else if (st.ok) box.innerHTML = '<div class="okbox"><b>Connected.</b> Companion ' + esc(st.version || '') + ' answered in ' + esc(st.ms) + ' ms' + (st.pages ? ': ' + plural(st.pages, 'page') + ', ' + plural(st.connections || 0, 'connection') : '') + '.</div>';
+      else if (st.configured && st.error && wzTried) box.innerHTML = '<div class="errbox"><b>Could not connect.</b> ' + esc(hintFor(st.error) || st.error) + '<br><small style="color:var(--dim)">' + esc(st.error) + '</small></div>';
+      else box.innerHTML = '';
+      if (nx) nx.disabled = !st.ok;
+    }
+    if (id === 'claude') {
+      var w = $('#wzWait'), n2 = $('#wzNext');
+      if (!w) return;
+      var last = (c.activity || [])[0];
+      w.innerHTML = c.everConnected
+        ? '<div class="okbox"><b>Claude is connected.</b>' + (last ? ' Its last request was <code>' + esc(last.tool) + '</code>, ' + esc(ago(last.t)) + '.' : '') + '</div>'
+        : '<div class="waitbox"><span class="spin"></span><span>Waiting for Claude\'s first request. This turns green by itself when Claude connects.</span></div>';
+      if (n2) n2.disabled = !c.everConnected;
+    }
+  }
+  function renderWizard(s) {
+    renderWizardSide(s);
+    var c = s.claude, w = WZ[wzStep];
+    var sig = w.id + '|' + (w.id === 'pin' ? s.pinRequired : '') + '|' + (w.id === 'claude' ? token + c.publicUrl + wzWho + c.everConnected + (c.security && c.security.mode) : '') + '|' + (w.id === 'done' ? JSON.stringify(WZ.map(function (x) { return stepState(x.id, s)[0]; })) : '') + '|' + (w.id === 'perms' ? wzPick : '') + '|' + (w.id === 'companion' ? JSON.stringify(c.companion.candidates) : '');
+    if (sig !== wzDrawn) { wzDrawn = sig; drawStep(w.id, s); }
+    wizardLive(s);
+  }
+  function drawStep(id, s) {
+    var pane = $('#wzPane'), c = s.claude;
+    if (id === 'welcome') {
+      pane.innerHTML = head('Let\'s connect Claude to your Companion') +
+        '<div class="wzbody"><p>LiveCompanion lets Claude look inside your central Companion to help you program buttons and triggers and find out why something did not fire. It takes about five minutes, and nothing is installed in Companion.</p>' +
+        '<ol class="steps"><li><b>Connect</b> LiveCompanion to Companion\'s web address</li><li><b>Choose what Claude may do.</b> To start with, it can only look</li><li><b>Protect this page</b> with a PIN</li><li><b>Connect Claude</b> and ask it a first question</li></ol>' +
+        '<p>Claude talks to the same interface Companion\'s own admin page uses. It is not a published interface, so a Companion update can change it; LiveCompanion tells you plainly if something stops working.</p></div>' +
+        foot('Start');
+      wire(function () { return mark('welcome'); });
+    }
+    if (id === 'companion') {
+      var cands = c.companion.candidates || [];
+      pane.innerHTML = head('Connect Companion') +
+        '<div class="wzbody"><p>Enter the address you open Companion\'s admin page at, with its port. On a Companion Pi that is usually <b>port 8000</b>.</p>' +
+        (cands.length ? '<div class="set first"><div class="sl"><b>One of your devices</b><span>Devices LiveCompanion manages that run Companion</span></div><div class="sc"><select id="wzPick"><option value="">Choose…</option>' + cands.map(function (d) { return '<option value="' + esc(d.id) + '" data-host="' + esc(d.host) + '">' + esc(d.name) + ' (' + esc(d.host) + ')</option>'; }).join('') + '</select></div></div>' : '') +
+        '<div class="set' + (cands.length ? '' : ' first') + '"><div class="sl"><b>Address</b><span>For example http://192.168.1.20:8000</span></div><div class="sc"><input id="wzUrl" class="txt wide" placeholder="http://192.168.1.20:8000" spellcheck="false" autocomplete="off" autocapitalize="off" value="' + esc(c.companion.url || '') + '"></div></div>' +
+        '<div class="set"><div class="sl"></div><div class="sc"><button id="wzConnect" class="on">Connect</button></div></div>' +
+        '<div id="wzConn"></div></div>' +
+        foot('Next', { disabled: !(c.companion.status || {}).ok });
+      wire(function () { return true; });
+      var pk = $('#wzPick'); if (pk) pk.onchange = function () { var o = pk.options[pk.selectedIndex]; if (o && o.dataset.host) $('#wzUrl').value = 'http://' + o.dataset.host + ':8000'; };
+      if (s.demo) $('#wzUrl').disabled = true;
+      var go = function () {
+        var url = $('#wzUrl').value.trim();
+        if (!s.demo && !url) { toast('Enter the address first'); return; }
+        wzTesting = true; wzTried = true; wizardLive(snap);
+        var save = s.demo ? Promise.resolve({ ok: true }) : capi('companion', { url: url, deviceId: pk ? pk.value : '' });
+        save.then(function (j) {
+          if (!j.ok) { wzTesting = false; wizardLive(snap); report(j, 'Could not save'); return; }
+          return capi('companion-test', {}).then(function () { wzTesting = false; wizardLive(snap); });
+        });
+      };
+      $('#wzConnect').onclick = go;
+      $('#wzUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    }
+    if (id === 'perms') {
+      var a = c.access, cur = wzPick || ({ read: 'look', build: 'build', hands: 'hands', full: 'hands' })[a.local] || 'look';
+      var P = [
+        ['look', 'Look only', 'Claude can read everything (pages, buttons and their actions, triggers, connections, variables, the log) and change nothing. Good to start with.', true],
+        ['build', 'Help build', 'Also create and change buttons, pages, triggers and custom variables. Each change is backed up and waits for your Keep or Revert.'],
+        ['hands', 'Hands on', 'Also press buttons and run triggers. This acts on the real show.']
+      ];
+      pane.innerHTML = head('What may Claude do?') +
+        '<div class="wzbody"><div class="picks">' + P.map(function (p) {
+          return '<button class="pick' + (cur === p[0] ? ' on' : '') + '" data-pick="' + p[0] + '"><span class="rb"></span><span><b>' + esc(p[1]) + (p[3] ? '<span class="tag2">Recommended</span>' : '') + '</b><span>' + esc(p[2]) + '</span></span></button>';
+        }).join('') + '</div>' +
+        '<p>Pages your volunteers rely on can be <b>protected</b> under Permissions: Claude can read them, but never change or press anything on them.</p>' +
+        '<p>This is the level for Claude on your network. Connections from outside each get their own level when you approve them. Deleting (the Full level) stays off. You can change all of this later under <b>Permissions</b>.</p></div>' +
+        foot('Use this');
+      $$('[data-pick]', pane).forEach(function (b) { b.onclick = function () { wzPick = b.dataset.pick; renderWizard(snap); }; });
+      wire(function () {
+        var pick = wzPick || cur;
+        var go = function () {
+          return capi('access', { enabled: true, local: pick === 'look' ? 'read' : pick }).then(function (j) {
+            if (!j.ok) { report(j, 'Could not save'); return false; }
+            return mark('perms').then(function () { return true; });
+          });
+        };
+        if (pick === 'hands') return confirmBox('Let Claude press buttons?', '<p>Claude will be able to press buttons and run triggers, which act on cameras, switchers, lights and audio.</p>', 'Allow').then(function (y) { return y ? go() : false; });
+        return go();
+      });
+    }
+    if (id === 'pin') {
+      pane.innerHTML = head('Protect this page') +
+        '<div class="wzbody"><p>Anyone on your network who opens LiveCompanion can run updates on your devices, change what Claude may do and see Claude\'s access token. A PIN stops that. You type it once per browser session.</p>' +
+        (s.pinRequired ? '<div class="okbox"><b>A PIN is set.</b> You can change or remove it later under Settings.</div>'
+          : '<div class="set first"><div class="sl"><b>PIN</b><span>At least 4 characters</span></div><div class="sc"><input id="wzPin" class="txt" type="password" autocomplete="new-password" placeholder="New PIN"><input id="wzPin2" class="txt" type="password" autocomplete="new-password" placeholder="Again"></div></div>') +
+        '</div>' + foot(s.pinRequired ? 'Next' : 'Set PIN', { alt: s.pinRequired ? null : 'Skip' });
+      wire(function () {
+        if (snap.pinRequired) return true;
+        var v = $('#wzPin').value, v2 = $('#wzPin2').value;
+        if (v.length < 4) { toast('A PIN needs at least 4 characters'); return false; }
+        if (v !== v2) { toast('The two PINs are not the same'); return false; }
+        return api('api/settings', { newPin: v }).then(function (j) {
+          if (!j.ok) { report(j, 'Could not set the PIN'); return false; }
+          pin = v; try { sessionStorage.setItem('lc-pin', v); } catch (e) {}
+          return mark('pin');
+        });
+      }, function () { mark('pin', 'skip').then(next); });
+    }
+    if (id === 'claude') {
+      if (!token) getToken();
+      var code = token ? codeCmd(token) : 'Getting the token…';
+      var url = connUrl();
+      var body = '<div class="seg" id="wzWho" style="margin:2px 0 12px"><button data-v="code"' + (wzWho === 'code' ? ' class="on"' : '') + '>Claude Code on a computer</button><button data-v="web"' + (wzWho === 'web' ? ' class="on"' : '') + '>claude.ai and the phone app</button></div>';
+      if (wzWho === 'code') {
+        body += '<ol class="steps"><li>On a Mac or PC on this network, open <b>Terminal</b>.</li><li>Paste this and press Return:</li></ol>' +
+          '<div class="copyrow"><pre class="cmd' + (token ? '' : ' dim') + '" id="cmdCode">' + esc(code) + '</pre><button data-copy="cmdCode">Copy</button></div>' +
+          '<ol class="steps" start="3"><li>Start Claude Code with <code>claude</code> and ask: <b>' + esc(TRY) + '</b></li></ol>';
+      } else {
+        body += webSteps(c, 'z') + (c.security && c.security.mode === 'exposed' && url ? '<ol class="steps" start="6"><li>In a new chat, ask: <b>' + esc(TRY) + '</b></li></ol>' : '');
+      }
+      pane.innerHTML = head('Connect Claude') + '<div class="wzbody">' + body + '<div id="wzWait"></div></div>' + foot('Next', { alt: c.everConnected ? null : 'Skip for now', disabled: !c.everConnected });
+      $$('#wzWho button', pane).forEach(function (b) { b.onclick = function () { wzWho = b.dataset.v; renderWizard(snap); }; });
+      wire(function () { return mark('claude'); }, function () { mark('claude', 'skip').then(next); });
+    }
+    if (id === 'done') {
+      var rows = WZ.slice(0, -1).map(function (x) {
+        var t = stepState(x.id, s);
+        return '<div class="sumrow wzs ' + t[0] + '" style="padding:8px 0"><span class="num">' + (t[0] === 'done' ? CHECK : t[0] === 'bad' ? '!' : '–') + '</span><span>' + esc(x.title) + '</span><small>' + esc(t[1]) + '</small></div>';
+      }).join('');
+      var open = WZ.slice(0, -1).filter(function (x) { var q = stepState(x.id, s)[0]; return q === 'todo' || q === 'bad'; });
+      pane.innerHTML = head(open.length ? 'Almost there' : 'All set') +
+        '<div class="wzbody"><p>' + (open.length ? 'These steps still need you. Click one on the left to finish it, or come back later.' : 'Claude can now look inside your Companion. Every request it makes shows up under Development mode > Overview and Activity.') + '</p>' + rows +
+        '<p style="margin-top:12px">Things to ask Claude: <b>"Which connections have errors?"</b>, <b>"What does the Sermon page do, button by button?"</b>, <b>"Why didn\'t my 9:55 countdown trigger fire?"</b>, <b>"Make a button on page 3 that switches the ATEM to camera 2."</b></p>' +
+        '<p>You can open this guide again from Development mode > Connect.</p></div>' +
+        foot('Open development mode');
+      wire(function () { return capi('setup', { completed: true }).then(function () { closeWizard(); return false; }); });
+    }
+  }
+  function openWizard(step) {
+    inWizard = true; inSetup = false; inClaude = false;
+    $('#tab-claude').classList.add('hide'); secBtn.classList.remove('on');
+    $('#tab-main').classList.add('hide'); $('#tab-setup').classList.add('hide'); $('#tab-wizard').classList.remove('hide');
+    gear.classList.add('on'); gear.title = 'Leave the setup guide'; $('span', gear).textContent = 'Close';
+    document.body.classList.add('in-setup');
+    $('#updAll').classList.add('hide');
+    wzStep = step != null ? step : (snap ? firstOpenStep(snap) : 0);
+    wzDrawn = '';
+    if (snap) render(snap);
+    window.scrollTo(0, 0);
+  }
+  function closeWizard() {
+    inWizard = false;
+    $('#tab-wizard').classList.add('hide');
+    $('span', gear).textContent = 'Done';
+    openClaude('overview');
+  }
+  $('#wzAgain').onclick = function () { openWizard(0); };
+
+  // ---------- development mode (Claude): its own button, its own menu, apart from the update pages ----------
+  var secBtn = $('#secBtn');
+  function showCSub(name) {
+    claudeSub = name; try { localStorage.setItem('lc-csub', name); } catch (e) {}
+    $$('#csub button').forEach(function (b) { b.classList.toggle('on', b.dataset.csub === name); });
+    $$('[data-cpane]').forEach(function (p) { p.classList.toggle('hide', p.dataset.cpane !== name); });
+    if (name === 'connect') ccLoaded = false;
+    if (name === 'perm') { protLoaded = false; whoSig = ''; }
+    if (name === 'security') { pubLoaded = false; connSig = ''; totpSig = ''; }
+    if (name === 'backups') cbkSig = null;
+    ccSig = ''; apSig = ''; rvSig = '';
+    if (snap) renderClaude(snap);
+    window.scrollTo(0, 0);
+  }
+  $$('#csub button').forEach(function (b) { b.onclick = function () { showCSub(b.dataset.csub); }; });
+  function openClaude(sub) {
+    inClaude = true; inSetup = false; inWizard = false;
+    ['#tab-main', '#tab-setup', '#tab-wizard'].forEach(function (t) { $(t).classList.add('hide'); });
+    $('#tab-claude').classList.remove('hide');
+    secBtn.classList.add('on'); gear.classList.remove('on'); gear.title = 'Settings'; $('span', gear).textContent = 'Done';
+    document.body.classList.add('in-setup');
+    $('#updAll').classList.add('hide');
+    showCSub(sub || claudeSub);
+  }
+  secBtn.onclick = function () { if (inClaude) showTab(false); else openClaude(); };
+  function renderClaude(s) {
+    if (!s.claude) return;
+    if (claudeSub === 'overview') {
+      renderClaudeCard(s); renderApprovals(s); renderReviews(s);
+      var c = s.claude, st = c.companion.status || {}, al = [];
+      if (!c.access.enabled) al.push('<div class="errbox">Claude access is off: every request is refused.</div>');
+      if (st.configured && !st.ok && !st.checking && st.error) al.push('<div class="errbox"><b>Companion is not reachable.</b> ' + esc(st.error) + '</div>');
+      var sig = al.join('');
+      if ($('#calerts').dataset.sig !== sig) { $('#calerts').dataset.sig = sig; $('#calerts').innerHTML = sig; }
+      $('#cRecent').classList.toggle('hide', !(c.activity || []).length);
+      $('#cactList').innerHTML = actRows(c.activity || [], 12);
+    } else if (claudeSub === 'security') renderSecurity(s);
+    else updateClaudePanes(s);
+  }
+  function renderSecButton(s) {
+    var c = s.claude || {}, sec = c.security || {}, n = (sec.pending || []).length;
+    var nrv = (c.reviews || []).filter(function (r) { return r.status === 'waiting'; }).length;
+    secBtn.classList.toggle('exp', sec.mode === 'exposed');
+    secBtn.title = 'Development mode (Claude)' + (c.access ? ': ' + modeText(c.access) : '') + (sec.mode === 'exposed' ? ', exposed' : '') + (n ? ', ' + plural(n, 'approval') + ' waiting' : '') + (nrv ? ', ' + plural(nrv, 'change') + ' to review' : '');
+    $('#secBadge').textContent = n + nrv; $('#secBadge').classList.toggle('hide', !(n + nrv));
+    $('#cOvBadge').textContent = n + nrv; $('#cOvBadge').classList.toggle('hide', !(n + nrv));
+    $('#cSecBadge').textContent = n; $('#cSecBadge').classList.toggle('hide', !n);
+  }
+
   // ---------- buttons in the header ----------
   $('#chkAll').onclick = function () { api('api/check', {}).then(function (j) { report(j, 'Could not check'); if (j.ok) toast('Checking all devices…', true); }); };
   $('#updAll').onclick = updateEverything;
@@ -923,7 +2025,8 @@
   }
   $$('#sub button').forEach(function (b) { b.onclick = function () { showSub(b.dataset.sub); }; });
   function showTab(setup) {
-    inSetup = setup;
+    inSetup = setup; inWizard = false; inClaude = false;
+    $('#tab-wizard').classList.add('hide'); $('#tab-claude').classList.add('hide'); secBtn.classList.remove('on'); $('span', gear).textContent = 'Done';
     $('#tab-main').classList.toggle('hide', setup); $('#tab-setup').classList.toggle('hide', !setup);
     gear.classList.toggle('on', setup); gear.title = setup ? 'Back to the dashboard' : 'Settings';
     document.body.classList.toggle('in-setup', setup);
@@ -931,7 +2034,7 @@
     if (setup) showSub(subPane); else if (snap) render(snap);
     window.scrollTo(0, 0);
   }
-  gear.onclick = function () { showTab(!inSetup); };
+  gear.onclick = function () { if (inWizard) closeWizard(); else showTab(inClaude ? true : !inSetup); };
 
   // full screen (hidden where the browser can't, or when installed as an app)
   (function () {
@@ -949,6 +2052,7 @@
   function start(first) {
     mode = 'live';
     render(first);
+    if (/[?&]setup\b/.test(location.search)) openWizard();
     var es = new EventSource('events');
     es.onmessage = function (e) { render(JSON.parse(e.data)); };
     setInterval(function () { if (Date.now() - lastMsg > 5000) document.body.classList.add('offline'); }, 1000);
