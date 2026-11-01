@@ -10,6 +10,7 @@ One dashboard for the Bitfocus Companion installs in your building. Add your con
 - Shows **Reboot needed** after updates, with a Reboot button, and waits for the device to come back.
 - Per device **On/Off switches** (Settings > Devices > Watching) for Companion, Satellite, containers, OS updates and reboot prompts. A Satellite that is installed beside Companion but not running is hidden automatically.
 - Checks everything **daily** (default 03:30) and with **Check now**. Badges on the dashboard, plus an optional **email** when something new appears.
+- **Connection watchdog** (Development mode > Watchdog): restarts Companion connections that stay in error after Companion starts or a device comes back. See below.
 - **Development mode** (its own button in the top bar, kept apart from the update pages): lets Claude look inside your central Companion and, when you allow it, program and press its buttons. See below.
 
 ## Run it
@@ -64,6 +65,19 @@ sudo systemctl start companion
 
 Satellite backups hold `satellite-config.json`; unpack with `-C /home/satellite`.
 
+## Connection watchdog
+
+Companion's modules do not always try again after a device was away. If Companion starts before the ATEM, the mixer or the wireless receivers are on, or a device drops off the network, its connection can stay in error until someone switches it off and on again on Companion's Connections page. The watchdog does that for you, on the central Companion (the one set up under Development mode > Connect).
+
+- A connection that is **switched on** and in **error** for longer than the wait time (default 1 minute) is switched off and on again.
+- While it stays in error it is tried again after 1, 2... minutes, then at the retry interval (default every 3 minutes), so a device that is switched on later is picked up soon.
+- When Companion itself was away (restart, power cut), the wait time counts from the moment it answers again, so its modules get their own chance first.
+- Connections you switched off in Companion are never touched. Set any connection to **Leave** to keep the watchdog away from it. Warnings are left alone unless you turn on *Also restart warnings*.
+- A connection the watchdog switched off is always switched back on, even if Companion or LiveCompanion went away in between.
+- **Restart** next to each connection does it by hand. *What the watchdog did* lists restarts (one line per stuck connection, with a count) and reconnections.
+
+It has its own On/Off switch (on by default) and does not depend on Claude: the Claude off switch and permission levels do not apply to it.
+
 ## Development mode (Claude)
 
 Development mode connects Claude to **one** Companion, your central one, for building and troubleshooting: Claude can read every page, button, trigger, variable and connection, and, at the level you allow, program and press them. It is the same design as HomeClaude (the Claude bridge for Home Assistant): same permission levels, keep or revert, security and setup guide. It has its own button in the top bar and its own pages (Overview, Connect, Permissions, Security, Backups, Activity); the update dashboard and its settings are not mixed with it. The two share only the control PIN.
@@ -109,7 +123,7 @@ There is **no login** by default. Anyone who can reach this page can run updates
 
 ## Testing status
 
-`npm test` runs 30 tests. 12 are for development mode: the Companion client over a real WebSocket against a pretend Companion 5 (PING/PONG, subscriptions, time-outs, dropped connections, chunked imports with checksums), every tool (reading, building with label and option checks, page-whole writes that leave the rest of the page alone, revert of changes, creations and deletions, restore from backups, protected pages including actions aimed at them, levels, Companion 4 refused), and the whole server (keep or revert, the access token, the off switch, exposed mode keeping the dashboard and the update pages private, sign-in approved at home and with an authenticator code, lockouts). The page was checked in a browser in demo mode on desktop and phone sizes. The other 18: version logic, the real probe/update/backup shell scripts against a fake device file tree, the engine's check > backup > update > verify flow and its failure path, mail against a fake SMTP server, and the web API with PIN. The UI was checked in a browser in demo mode.
+`npm test` runs 31 tests. 1 is for the connection watchdog (wait time, back-off, warnings, left-out and switched-off connections, Companion going away, an interrupted restart switched back on, restarting by hand). 12 are for development mode: the Companion client over a real WebSocket against a pretend Companion 5 (PING/PONG, subscriptions, time-outs, dropped connections, chunked imports with checksums), every tool (reading, building with label and option checks, page-whole writes that leave the rest of the page alone, revert of changes, creations and deletions, restore from backups, protected pages including actions aimed at them, levels, Companion 4 refused), and the whole server (keep or revert, the access token, the off switch, exposed mode keeping the dashboard and the update pages private, sign-in approved at home and with an authenticator code, lockouts). The page was checked in a browser in demo mode on desktop and phone sizes. The other 18: version logic, the real probe/update/backup shell scripts against a fake device file tree, the engine's check > backup > update > verify flow and its failure path, mail against a fake SMTP server, and the web API with PIN. The UI was checked in a browser in demo mode.
 
 **Development mode was not tested against a real Companion.** It was written from Companion 5.1.1's source, and the pretend Companion answers the way that source does, but expect some first-run fixes; try Look only first, then Help build on a page you do not use on Sundays.
 

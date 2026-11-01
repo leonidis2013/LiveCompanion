@@ -95,6 +95,78 @@ function fakeCompanionServer(opts = {}) {
 
 module.exports = function register(test) {
 
+  test('watchdog: restarts stuck connections after the wait, backs off, survives Companion going away, never leaves one off', async () => {
+    const Watchdog = R('lib/claude/watchdog');
+    const core = Fake.create(), real = Fake.client(core), m = core.state();
+    const calls = [];
+    let failOn = false;
+    const companion = Object.assign({}, real, { mutate: async (p, i) => { calls.push((i.enabled ? 'on ' : 'off ') + i.connectionId); if (failOn && i.enabled) throw new Error('gone'); return real.mutate(p, i); } });
+    const settings = Watchdog.normalize({ graceSec: 15 });
+    const state = {};
+    let clock = 1e12; const realNow = Date.now; Date.now = () => clock;
+    try {
+      const w = Watchdog.create({ companion, cfg: () => settings, state: () => state, save() {}, broadcast() {}, toggleMs: 0, minute: 60000 });
+      settings.graceSec = 30;
+      await w.tick();
+      assert.deepStrictEqual(calls, [], 'a fresh error waits the wait time');
+      clock += 31000; await w.tick();
+      assert.deepStrictEqual(calls, ['off c_sq', 'on c_sq'], 'only the connection in error (obs only has a warning)');
+      assert.strictEqual(m.connections.c_sq.enabled, true);
+      let snap = w.snapshot();
+      assert.strictEqual(snap.connections.find((c) => c.id === 'c_sq').attempts, 1);
+      assert.strictEqual(snap.events[0].type, 'restarting');
+      clock += 30000; await w.tick();
+      assert.strictEqual(calls.length, 2, 'next try waits a minute');
+      clock += 31000; await w.tick();
+      assert.strictEqual(calls.length, 4, 'second restart');
+      await w.tick(); // the demo SQ is back after two restarts
+      snap = w.snapshot();
+      assert.ok(snap.connections.find((c) => c.id === 'c_sq').ok);
+      assert.strictEqual(snap.events.length, 1, 'one line per streak, not one per restart');
+      assert.strictEqual(snap.events[0].type, 'reconnected');
+      assert.strictEqual(snap.events[0].count, 2);
+
+      // warnings only when asked; skipped and switched-off connections are left alone
+      settings.warnings = true; settings.skip = ['c_obs'];
+      calls.length = 0; clock += 60000; await w.tick(); clock += 60000; await w.tick();
+      assert.deepStrictEqual(calls, [], 'obs is left out');
+      settings.skip = []; m.connections.c_pro.enabled = false; m.statuses.c_pro = { category: 'error', level: 'Connection Failure' };
+      await w.tick(); clock += 31000; await w.tick();
+      assert.deepStrictEqual(calls, ['off c_obs', 'on c_obs'], 'obs restarted with warnings on; switched-off propresenter never');
+      settings.warnings = false;
+
+      // Companion goes away and comes back: the wait time starts again from then
+      m.offline = true; clock += 600000; await w.tick();
+      assert.strictEqual(w.snapshot().companionUp, false);
+      m.offline = false; m.statuses.c_atem = { category: 'error', level: 'Disconnected' };
+      calls.length = 0; await w.tick();
+      assert.deepStrictEqual(calls, [], 'not straight after Companion starts');
+      assert.ok(state.events.some((e) => e.type === 'companion-back'));
+      clock += 31000; await w.tick();
+      assert.deepStrictEqual(calls, ['off c_atem', 'on c_atem']);
+
+      // switched off but the "on" failed: switched back on at the next look, even with the watchdog off
+      failOn = true; clock += 600000; calls.length = 0; await w.tick();
+      assert.strictEqual(m.connections.c_atem.enabled, false);
+      assert.ok(state.pendingOn.c_atem);
+      failOn = false; settings.enabled = false; await w.tick();
+      assert.strictEqual(m.connections.c_atem.enabled, true, 'switched back on');
+      assert.deepStrictEqual(state.pendingOn, {});
+      assert.ok(state.events.some((e) => e.type === 'reenabled'));
+
+      // manual restart
+      settings.enabled = true; calls.length = 0;
+      assert.ok((await w.restartNow('ATEM')).ok, 'by label, any case');
+      assert.deepStrictEqual(calls, ['off c_atem', 'on c_atem']);
+      assert.ok(!(await w.restartNow('propresenter')).ok, 'a switched-off connection is not restarted');
+      assert.ok(!(await w.restartNow('nope')).ok);
+
+      // settings are kept in range
+      const n = Watchdog.normalize({ graceSec: 1, retryMin: 999, skip: ['a', 'a', ''] });
+      assert.deepStrictEqual([n.graceSec, n.retryMin, n.skip, n.enabled], [15, 60, ['a'], true]);
+    } finally { Date.now = realNow; }
+  });
+
   test('companion client: tRPC over a real WebSocket, PING/PONG, subscriptions stop, errors, HTTP', async () => {
     const f = await fakeCompanionServer({ ping: true });
     const c = Companion.create({ getUrl: () => f.url });
