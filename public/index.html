@@ -374,7 +374,6 @@
  <div class="setup">
   <div class="side" id="csub">
     <button data-csub="overview" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Overview</span><b class="badge hide" id="cOvBadge"></b></button>
-    <button data-csub="watchdog"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg><span>Watchdog</span><b class="badge hide" id="cWdBadge"></b></button>
     <button data-csub="connect"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Connect</span></button>
     <button data-csub="perm"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Permissions</span></button>
     <button data-csub="security"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Security</span><b class="badge hide" id="cSecBadge"></b></button>
@@ -396,22 +395,6 @@
         </article>
       </div>
       <div class="card" id="cRecent"><h2>Recent requests</h2><div class="alist" id="cactList"></div></div>
-    </div>
-
-    <div data-cpane="watchdog" class="hide">
-      <div class="note pnote">Companion does not always try again after a device was away: if Companion starts before the ATEM, the mixer or the wireless receivers, or a device drops off the network, its connection can stay in error. The watchdog switches such a connection off and on again, the same as you would on Companion's Connections page, until the device answers. It runs on its own, apart from Claude's permissions, and never touches connections you switched off in Companion.</div>
-      <div id="wdAlert"></div>
-      <div class="card">
-        <h2>Watchdog</h2>
-        <div class="set first"><div class="sl"><b>Restart stuck connections</b><span id="wdState"></span></div><div class="sc"><div class="seg" id="wdOn"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
-        <div class="set"><div class="sl"><b>Give a connection time first</b><span>How long a connection may sit in error before the first restart. After Companion starts, this counts from when it answers, so its modules get their own chance</span></div><div class="sc"><select id="wdGrace" aria-label="Wait before the first restart"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option></select></div></div>
-        <div class="set"><div class="sl"><b>Keep trying every</b><span>While a connection stays in error it is tried again after 1, 2... minutes, then at this interval, so a device switched on later is picked up soon</span></div><div class="sc"><select id="wdRetry" aria-label="Retry interval"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30">30 minutes</option></select></div></div>
-        <div class="set"><div class="sl"><b>Also restart warnings</b><span>Off: only connections with an error. On: also ones stuck on a warning (some modules show "Connecting" as a warning)</span></div><div class="sc"><div class="seg" id="wdWarn"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
-      </div>
-      <div class="card"><h2>Connections</h2><div class="note" style="margin-bottom:6px">Switch a connection to <b>Leave</b> if the watchdog should not restart it (for example one that shows an error on purpose).</div><div id="wdList"></div></div>
-      <div class="card"><h2>What the watchdog did</h2><div class="alist" id="wdEvents"></div>
-        <div class="set"><div class="sl"></div><div class="sc"><button id="wdClear" class="danger">Clear</button></div></div>
-      </div>
     </div>
 
     <div data-cpane="connect" class="hide">
@@ -1211,7 +1194,7 @@
   // =====================================================================
   var inWizard = false, inClaude = false, token = '', claudeSub = 'overview';
   try { claudeSub = localStorage.getItem('lc-csub') || 'overview'; } catch (e) {}
-  if (['overview', 'watchdog', 'connect', 'perm', 'security', 'backups', 'activity'].indexOf(claudeSub) < 0) claudeSub = 'overview';
+  if (['overview', 'connect', 'perm', 'security', 'backups', 'activity'].indexOf(claudeSub) < 0) claudeSub = 'overview';
   var ccLoaded = false, pubLoaded = false, protLoaded = false, cbkSig = null, apSig = '', apScope = {}, apSpan = {}, connSig = '';
   function C() { return (snap && snap.claude) || {}; }
   function capi(p, body) { return api('api/claude/' + p, body); }
@@ -1974,65 +1957,6 @@
   }
   $('#wzAgain').onclick = function () { openWizard(0); };
 
-  // ---------- the connection watchdog ----------
-  var WD_EV = {
-    restarting: function (e) { return ['warn', 'Restarting ' + e.label, (e.count > 1 ? plural(e.count, 'restart') + ' so far' : 'Restarted') + (e.status ? ' · was: ' + e.status : '')]; },
-    reconnected: function (e) { return ['ok', e.label + ' reconnected', 'After ' + plural(e.count || 1, 'restart')]; },
-    manual: function (e) { return ['acc', 'Restarted ' + e.label, 'By you' + (e.status ? ' · was: ' + e.status : '')]; },
-    failed: function (e) { return ['bad', 'Could not restart ' + e.label, e.detail || '']; },
-    reenabled: function (e) { return ['warn', e.label + ' switched back on', e.detail || '']; },
-    'companion-down': function (e) { return ['bad', 'Companion stopped answering', e.detail || '']; },
-    'companion-back': function (e) { return ['ok', 'Companion is back', e.detail || '']; }
-  };
-  var wdSig = '';
-  function wdApi(body) { return capi('watchdog', body).then(function (j) { return report(j, 'Could not save'); }); }
-  function renderWatchdog(s) {
-    var c = s.claude, wd = c.watchdog || {}, w = wd.settings || {}, conns = wd.connections || [], st = c.companion.status || {};
-    paintSeg($('#wdOn'), w.enabled ? '1' : '0');
-    paintSeg($('#wdWarn'), w.warnings ? '1' : '0');
-    if (document.activeElement !== $('#wdGrace')) $('#wdGrace').value = String(w.graceSec);
-    if (document.activeElement !== $('#wdRetry')) $('#wdRetry').value = String(w.retryMin);
-    var stuck = conns.filter(function (x) { return x.bad && x.enabled && !x.skipped; }).length;
-    $('#wdState').textContent = !st.configured ? 'Set up Companion\'s address under Connect first' : !w.enabled ? 'Off: stuck connections stay as they are' :
-      wd.companionUp === false ? 'Waiting for Companion to answer' : stuck ? plural(stuck, 'connection') + ' in error, being restarted' : 'Watching ' + plural(conns.filter(function (x) { return x.enabled && !x.skipped; }).length, 'connection') + ', all fine';
-    var al = '';
-    if ((wd.pendingOn || []).length) al = '<div class="errbox"><b>Switching back on:</b> ' + esc(wd.pendingOn.join(', ')) + '. A restart was interrupted; the watchdog switches ' + (wd.pendingOn.length > 1 ? 'them' : 'it') + ' on as soon as Companion answers.</div>';
-    else if (wd.error && st.configured) al = '<div class="errbox"><b>Companion is not answering.</b> ' + esc(wd.error) + '</div>';
-    var sig = JSON.stringify([al, conns, wd.events, w]);
-    if (sig === wdSig) return;
-    wdSig = sig;
-    $('#wdAlert').innerHTML = al;
-    $('#wdList').innerHTML = conns.length ? conns.map(function (x) {
-      var dot = !x.enabled ? '' : x.ok ? 'ok' : x.bad ? 'bad' : 'warn';
-      var info = !x.enabled ? 'Switched off in Companion' : x.skipped ? esc(x.status) + ' · left alone' : x.bad ? esc(x.status) + (x.attempts ? ' · ' + plural(x.attempts, 'restart') : '') + (x.nextIn != null ? ' · next try in ' + (x.nextIn >= 90 ? Math.round(x.nextIn / 60) + ' min' : x.nextIn + ' s') : '') : esc(x.status);
-      return '<div class="set"><div class="sl"><b><span class="dot ' + dot + '" style="display:inline-block;margin-right:8px;vertical-align:1px"></span>' + esc(x.label) + '</b><span>' + esc(x.module || '') + ' · ' + info + '</span></div><div class="sc">' +
-        (x.enabled ? '<button data-wdr="' + esc(x.id) + '">Restart</button><div class="seg" data-wdw="' + esc(x.id) + '"><button data-v="1" class="' + (x.skipped ? '' : 'on') + '">Watch</button><button data-v="0" class="' + (x.skipped ? 'on' : '') + '">Leave</button></div>' : '') + '</div></div>';
-    }).join('') : '<div class="note">' + (st.configured ? 'No connections read yet.' : 'Set up Companion\'s address under Connect first.') + '</div>';
-    $$('#wdList [data-wdr]').forEach(function (b) {
-      b.onclick = function () {
-        var x = conns.filter(function (y) { return y.id === b.dataset.wdr; })[0];
-        confirmBox('Restart ' + (x ? x.label : 'this connection') + '?', '<p>Companion switches the connection off and on again. Buttons that use it stop working for a few seconds.</p>', 'Restart').then(function (y) {
-          if (!y) return;
-          b.disabled = true;
-          capi('watchdog/restart', { connection: b.dataset.wdr }).then(function (j) { b.disabled = false; report(j, 'Could not restart'); if (j.ok) toast('Restarted', true); });
-        });
-      };
-    });
-    $$('#wdList [data-wdw] button').forEach(function (b) { b.onclick = function () { wdApi({ connection: b.parentNode.dataset.wdw, watch: b.dataset.v === '1' }); }; });
-    var ev = wd.events || [];
-    $('#wdEvents').innerHTML = ev.length ? ev.map(function (e) {
-      var f = (WD_EV[e.type] || function () { return ['', e.type, e.detail || '']; })(e);
-      return '<div class="arow"><span class="dot ' + f[0] + '"></span><div class="an"><b>' + esc(f[1]) + '</b>' + (f[2] ? '<span>' + esc(f[2]) + '</span>' : '') + '</div><div class="aw">' + esc(ago(e.last || e.t)) + '</div></div>';
-    }).join('') : '<div class="note" style="padding:12px 0">Nothing yet. Restarts and reconnections show up here.</div>';
-  }
-  $$('#wdOn button').forEach(function (b) { b.onclick = function () { wdApi({ enabled: b.dataset.v === '1' }); }; });
-  $$('#wdWarn button').forEach(function (b) { b.onclick = function () { wdApi({ warnings: b.dataset.v === '1' }); }; });
-  $('#wdGrace').onchange = function () { wdApi({ graceSec: Number(this.value) }); };
-  $('#wdRetry').onchange = function () { wdApi({ retryMin: Number(this.value) }); };
-  $('#wdClear').onclick = function () {
-    confirmBox('Clear the watchdog list?', '<p>The list of restarts is emptied. Companion is not touched.</p>', 'Clear', true).then(function (y) { if (y) capi('watchdog/clear', {}).then(function (j) { report(j, 'Could not clear'); }); });
-  };
-
   // ---------- development mode (Claude): its own button, its own menu, apart from the update pages ----------
   var secBtn = $('#secBtn');
   function showCSub(name) {
@@ -2043,7 +1967,6 @@
     if (name === 'perm') { protLoaded = false; whoSig = ''; }
     if (name === 'security') { pubLoaded = false; connSig = ''; totpSig = ''; }
     if (name === 'backups') cbkSig = null;
-    if (name === 'watchdog') wdSig = '';
     ccSig = ''; apSig = ''; rvSig = '';
     if (snap) renderClaude(snap);
     window.scrollTo(0, 0);
@@ -2071,7 +1994,6 @@
       $('#cRecent').classList.toggle('hide', !(c.activity || []).length);
       $('#cactList').innerHTML = actRows(c.activity || [], 12);
     } else if (claudeSub === 'security') renderSecurity(s);
-    else if (claudeSub === 'watchdog') renderWatchdog(s);
     else updateClaudePanes(s);
   }
   function renderSecButton(s) {
@@ -2082,8 +2004,6 @@
     $('#secBadge').textContent = n + nrv; $('#secBadge').classList.toggle('hide', !(n + nrv));
     $('#cOvBadge').textContent = n + nrv; $('#cOvBadge').classList.toggle('hide', !(n + nrv));
     $('#cSecBadge').textContent = n; $('#cSecBadge').classList.toggle('hide', !n);
-    var wd = c.watchdog || {}, stuck = (wd.connections || []).filter(function (x) { return x.bad && x.enabled; }).length;
-    $('#cWdBadge').textContent = stuck; $('#cWdBadge').classList.toggle('hide', !stuck);
   }
 
   // ---------- buttons in the header ----------
