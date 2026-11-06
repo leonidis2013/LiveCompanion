@@ -322,6 +322,18 @@ test('engine: check, backup, update and verify on a fake Pi (real scripts, fake 
   for (let i = 0; i < 200; i++) { job = eng.getJob(r2.jobs[0]); if (job.status === 'done' || job.status === 'failed') break; await new Promise((x) => setTimeout(x, 100)); }
   assert.strictEqual(job.status, 'failed');
   assert.ok(/exit 5/.test(job.summary) && job.steps[1].status === 'skipped', JSON.stringify(job.steps));
+  // a failed job's box clears after a newer check, and can be dismissed by hand
+  let listed;
+  for (let i = 0; i < 100; i++) { listed = eng.jobList().find((j) => j.id === r2.jobs[0]); if (listed.settledAt) break; await new Promise((x) => setTimeout(x, 50)); }
+  assert.ok(listed.settledAt >= listed.endedAt && !listed.dismissed, JSON.stringify(listed));
+  while (eng.isChecking('d1') || eng.isBusy('d1')) await new Promise((x) => setTimeout(x, 50));
+  await new Promise((x) => setTimeout(x, 5));
+  st = await eng.checkDevice('d1', { force: true });
+  assert.ok(st.reachable && st.checkedAt > listed.settledAt, 'a later check is newer than the failed job');
+  assert.ok(eng.dismissJob(r2.jobs[0]).ok);
+  listed = eng.jobList().find((j) => j.id === r2.jobs[0]);
+  assert.ok(listed.dismissed && eng.getJob(r2.jobs[0]).status === 'failed', 'dismissed, still in history');
+  assert.ok(!eng.dismissJob('nope').ok);
 });
 
 test('HTTP API in demo mode: state, check, update job, settings, PIN', async () => {

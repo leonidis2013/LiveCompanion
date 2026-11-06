@@ -543,6 +543,7 @@ const server = http.createServer((req, res) => {
       return { ok: true };
     });
   }
+  if (req.method === 'POST' && url === '/api/job-dismiss') return postJson(req, res, (b) => engine.dismissJob(String(b.id || '')));
   if (req.method === 'POST' && url === '/api/update') return postJson(req, res, (b) => engine.startJobs(Array.isArray(b.items) ? b.items.slice(0, 60) : []));
   if (req.method === 'POST' && url === '/api/settings') return postJson(req, res, changeSettings);
   if (req.method === 'POST' && url === '/api/email') return postJson(req, res, changeEmail);
