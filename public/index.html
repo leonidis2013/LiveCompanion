@@ -267,6 +267,11 @@
   .rev .ah .tm b { font-variant-numeric:tabular-nums; color:var(--fg); }
   .rev .sub { font-size:13px; color:var(--dim); margin:4px 0 10px; }
   .rev .af { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .rev .af .sp { flex:1; }
+  .rev .ah .rvck, .rvbar .rvck { width:18px; height:18px; margin:0; accent-color:var(--acc); cursor:pointer; flex:none; }
+  .rev.sel { background:color-mix(in srgb, var(--acc) 8%, var(--card)); }
+  .rvbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; max-width:900px; position:sticky; top:0; z-index:2; }
+  .rvbar label { display:flex; gap:8px; align-items:center; cursor:pointer; font-weight:700; }
+  .rvbar .sp { flex:1; } .rvbar .n { font-size:13px; color:var(--dim); }
   .chip.acc { background:color-mix(in srgb, var(--acc) 18%, transparent); color:var(--acc); }
   .diff { margin:10px 0; background:var(--inset); border-radius:8px; padding:8px 0; font:12px/1.5 var(--mono); max-height:360px; overflow:auto; }
   .diff div { padding:0 10px 0 26px; white-space:pre-wrap; overflow-wrap:anywhere; position:relative; }
@@ -1507,7 +1512,7 @@
     if (skipped) h += '<div class="gap">… ' + plural(skipped, 'line') + ' unchanged</div>';
     return h || '<div class="gap">No difference</div>';
   }
-  var rvSig = '', rvOpen = {};
+  var rvSig = '', rvOpen = {}, rvSel = {}, rvBusy = false;
   var ACT = { changed: ['changed', 'acc'], created: ['created', 'o'], deleted: ['deleted', 'b'] };
   var A_KIND = { button: 'a button', trigger: 'a trigger', page: 'a page', variable: 'a custom variable' };
   function left(ms, shortFmt) {
@@ -1525,19 +1530,45 @@
   }, 1000);
   function renderReviews(s) {
     var c = s.claude || {}, list = (c.reviews || []).filter(function (r) { return r.status === 'waiting'; });
-    var sig = JSON.stringify(list.map(function (r) { return [r.rid, r.updatedAt, r.autoAt, !!rvOpen[r.rid]]; }));
+    var live = {}; list.forEach(function (r) { live[r.rid] = 1; });
+    Object.keys(rvSel).forEach(function (k) { if (!live[k]) delete rvSel[k]; });
+    var nSel = list.filter(function (r) { return rvSel[r.rid]; }).length, multi = list.length > 1;
+    var sig = JSON.stringify([list.map(function (r) { return [r.rid, r.updatedAt, r.autoAt, !!rvOpen[r.rid], !!rvSel[r.rid]]; }), rvBusy]);
     if (sig === rvSig) return;
     rvSig = sig;
-    $('#reviews').innerHTML = list.map(function (r) {
+    var bar = multi ? '<div class="rvbar"><label><input type="checkbox" class="rvck" id="rvAll"' + (nSel === list.length ? ' checked' : '') + ' aria-label="Select all changes">Select all</label>' +
+      '<span class="n">' + (nSel ? nSel + ' of ' + list.length + ' selected' : list.length + ' changes waiting') + '</span><span class="sp"></span>' +
+      '<button class="danger" id="rvManyRevert"' + (rvBusy ? ' disabled' : '') + '>Revert ' + esc(nSel ? 'selected' : 'all') + '</button>' +
+      '<button class="on" id="rvManyKeep"' + (rvBusy ? ' disabled' : '') + '>Keep ' + esc(nSel ? 'selected' : 'all') + '</button></div>' : '';
+    $('#reviews').innerHTML = bar + list.map(function (r) {
       var a = ACT[r.action] || [r.action, ''];
       var auto = r.autoAt ? '<span class="tm">' + (c.review.ifNoAnswer === 'revert' ? 'Reverts' : 'Kept') + ' automatically in <b data-until="' + Number(r.autoAt) + '">' + left(r.autoAt - Date.now()) + '</b></span>' : '<span class="tm">waiting for you</span>';
-      return '<div class="rev"><div class="ah"><span class="dot acc"></span>' + esc(r.who || 'Claude') + ' ' + esc(a[0]) + ' ' + esc(A_KIND[r.kind] || r.kind) + ' in Companion: ' + esc(r.alias) + ' <span class="chip ' + a[1] + '">' + esc(a[0]) + '</span>' + auto + '</div>' +
+      return '<div class="rev' + (rvSel[r.rid] ? ' sel' : '') + '"><div class="ah">' + (multi ? '<input type="checkbox" class="rvck" data-rvsel="' + r.rid + '"' + (rvSel[r.rid] ? ' checked' : '') + ' aria-label="Select this change">' : '') + '<span class="dot acc"></span>' + esc(r.who || 'Claude') + ' ' + esc(a[0]) + ' ' + esc(A_KIND[r.kind] || r.kind) + ' in Companion: ' + esc(r.alias) + ' <span class="chip ' + a[1] + '">' + esc(a[0]) + '</span>' + auto + '</div>' +
         '<div class="sub">' + esc(when(r.at)) + (r.where === 'outside' ? ' · from outside' : '') + (r.changes > 1 ? ' · changed ' + r.changes + ' times; Revert goes back to the version before the first change' : '') + ' · the old version is backed up</div>' +
         (rvOpen[r.rid] ? '<div class="diff">' + diffHtml(r.beforeView ? yamlLines(r.beforeView) : [], r.afterView ? yamlLines(r.afterView) : []) + '</div>' : '') +
         '<div class="af"><button data-rvshow="' + r.rid + '">' + (rvOpen[r.rid] ? 'Hide changes' : 'Show changes') + '</button><span class="sp"></span>' +
         '<button class="danger" data-rvrevert="' + r.rid + '">Revert</button><button class="on" data-rvkeep="' + r.rid + '">Keep</button></div></div>';
     }).join('');
     $$('[data-rvshow]').forEach(function (b) { b.onclick = function () { rvOpen[b.dataset.rvshow] = !rvOpen[b.dataset.rvshow]; rvSig = ''; renderReviews(snap); }; });
+    $$('[data-rvsel]').forEach(function (b) { b.onchange = function () { if (b.checked) rvSel[b.dataset.rvsel] = 1; else delete rvSel[b.dataset.rvsel]; renderReviews(snap); }; });
+    var all = $('#rvAll'); if (all) all.onchange = function () { rvSel = {}; if (all.checked) list.forEach(function (r) { rvSel[r.rid] = 1; }); renderReviews(snap); };
+    function many(keep) {
+      var pick = nSel ? list.filter(function (r) { return rvSel[r.rid]; }) : list;
+      var go = function () {
+        rvBusy = true; renderReviews(snap);
+        capi('review/many', { rids: pick.map(function (r) { return r.rid; }), keep: keep }).then(function (j) {
+          rvBusy = false; rvSel = {}; rvSig = ''; renderReviews(snap);
+          var bad = (j.failed || []).length;
+          if (j.ok) toast((keep ? 'Kept ' : 'Reverted ') + plural(j.done, 'change') + (bad ? '; ' + bad + ' could not be ' + (keep ? 'kept' : 'reverted') + ': ' + j.failed.map(function (f) { return f.name; }).join(', ') : ''), !bad);
+          else report(j, keep ? 'Could not keep them' : 'Could not revert them');
+        });
+      };
+      if (keep) return go();
+      confirmBox('Revert ' + plural(pick.length, 'change') + '?', '<p>Each one goes back to the version from before Claude\'s first change: new things are removed and deleted things come back. Companion uses them right away. The current versions are backed up first.</p><ul>' +
+        pick.map(function (r) { return '<li>' + esc(KIND_NAME[r.kind] || r.kind) + ' ' + esc(r.alias) + ' (' + esc(r.action) + ')</li>'; }).join('') + '</ul>', 'Revert ' + (nSel ? 'selected' : 'all'), true).then(function (y) { if (y) go(); });
+    }
+    var mk = $('#rvManyKeep'); if (mk) mk.onclick = function () { many(true); };
+    var mr = $('#rvManyRevert'); if (mr) mr.onclick = function () { many(false); };
     $$('[data-rvkeep]').forEach(function (b) { b.onclick = function () { b.disabled = true; capi('review', { rid: b.dataset.rvkeep, keep: true }).then(function (j) { b.disabled = false; report(j, 'Could not keep it'); if (j.ok) toast('Kept', true); }); }; });
     $$('[data-rvrevert]').forEach(function (b) {
       b.onclick = function () {

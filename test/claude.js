@@ -394,6 +394,23 @@ module.exports = function register(test) {
       // Claude is told about the revert
       const ov = await rpc(port, tok, 'tools/call', { name: 'get_overview', arguments: {} });
       assert.ok(JSON.parse(ov.j.result.content[0].text).review.recently_reverted.length === 1);
+      // several at once: revert two selected, then keep all that are left
+      for (const [col, text] of [[1, 'BULK A'], [2, 'BULK B'], [3, 'BULK C']]) {
+        const x = await rpc(port, tok, 'tools/call', { name: 'save_button', arguments: { page: 2, row: 1, column: col, text } });
+        assert.ok(!x.j.result.isError, x.j.result.content[0].text);
+      }
+      st = (await req(port, 'GET', '/api/state')).j;
+      const many = st.claude.reviews.filter((x) => x.status === 'waiting');
+      assert.strictEqual(many.length, 3);
+      const pickTwo = many.filter((x) => x.id !== 'p2r1c3').map((x) => x.rid);
+      const mr = (await req(port, 'POST', '/api/claude/review/many', { rids: pickTwo, keep: false })).j;
+      assert.ok(mr.ok && mr.done === 2 && !mr.failed.length, JSON.stringify(mr));
+      assert.notStrictEqual(Tools.buttonText(f.core.state().pages[1].controls[1] && f.core.state().pages[1].controls[1][1]), 'BULK A', 'reverted in Companion');
+      assert.ok(!(await req(port, 'POST', '/api/claude/review/many', { rids: pickTwo, keep: true })).j.ok, 'answered once');
+      const mk = (await req(port, 'POST', '/api/claude/review/many', { all: true, keep: true })).j;
+      assert.ok(mk.ok && mk.done === 1, JSON.stringify(mk));
+      assert.strictEqual(Tools.buttonText(f.core.state().pages[1].controls[1][3]), 'BULK C', 'kept');
+      assert.ok(!(await req(port, 'POST', '/api/claude/review/many', { keep: true })).j.ok, 'must say which');
       // backups, restore, download
       const bks = (await req(port, 'GET', '/api/claude/backups')).j.backups;
       assert.ok(bks.some((b) => b.kind === 'button' && b.reason === 'before-change'));
